@@ -55,10 +55,10 @@ def init_save_callback(logdir, batch_size, save_interval):
 
 
 def train(
-    env, num_timesteps, hardware, logdir, save, save_interval, load, seed, tensorboard
+    env, num_timesteps, hardware, logdir, save, save_interval, load, seed, domain_randomization, tensorboard
 ):
     def make_env():
-        env_out = env(use_simulator=not hardware, frequency=250)
+        env_out = env(use_simulator=not hardware, domain_randomization=domain_randomization, frequency=250)
         env_out = bench.Monitor(env_out, logger.get_dir(), allow_early_resets=True)
         return env_out
 
@@ -125,6 +125,7 @@ def main():
     parser.add_argument("-si", "--save-interval", type=float, default=5e4)
     parser.add_argument("-p", "--play", action="store_true")
     parser.add_argument("-sd", "--seed", type=int, default=-1)
+    parser.add_argument("-dr", "--domain-randomization", action="store_true")
     parser.add_argument(
         "-o",
         "--output-formats",
@@ -161,6 +162,7 @@ def main():
         save_interval=save_interval,
         load=args.load,
         seed=seed,
+        domain_randomization=args.domain_randomization,
         tensorboard=tb_logdir if "tensorboard" in args.output_formats else None,
     )
 
