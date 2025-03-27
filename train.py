@@ -3,6 +3,8 @@
 import numpy as np
 import gym
 import os
+import json
+from load_config import load_config
 
 from gym_brt.envs import (
     QubeSwingupEnv,
@@ -80,6 +82,13 @@ def train(
         verbose=1,
         tensorboard_log=tensorboard,
     )
+    #store metadata of the run
+    metadata = {"domain_randomization": domain_randomization,
+                "config": load_config()}
+    with open(logdir + "/metadata.json", "w") as f:
+        json.dump(metadata, f)   
+        
+    # Save the model every `save_interval` steps
     if save and save_interval > 0:
         callback = init_save_callback(logdir, 2048, save_interval)
     else:
