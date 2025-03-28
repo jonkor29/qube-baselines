@@ -5,6 +5,7 @@ import gym
 import os
 import json
 from load_config import load_config
+from datetime import datetime 
 
 from gym_brt.envs import (
     QubeSwingupEnv,
@@ -83,7 +84,8 @@ def train(
         tensorboard_log=tensorboard,
     )
     #store metadata of the run
-    metadata = {"domain_randomization": domain_randomization,
+    metadata = {"timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "domain_randomization": domain_randomization,
                 "config": load_config()}
     with open(logdir + "/metadata.json", "w") as f:
         json.dump(metadata, f)   
