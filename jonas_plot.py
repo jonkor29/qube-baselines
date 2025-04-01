@@ -4,6 +4,9 @@
 import os
 import glob
 import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+
 
 def read_progress_csv(filepath):
     """
@@ -21,4 +24,53 @@ def collect_all_progress_files(directory="."):
     """
     pattern = os.path.join(directory, "**", "*progress.csv")
     return glob.glob(pattern, recursive=True)
+
+def plot_rewards(reward_arrays):
+    """
+    Given a list of lists (reward_arrays), where each list contains per-batch reward data
+    from one run, compute and plot the mean and standard deviation of reward as a function
+    of batch index. 
+    """
+    # Determine the maximum number of episodes among all runs
+    max_len = max(len(arr) for arr in reward_arrays)
+
+    # Prepare lists for mean and std of reward at each batch index
+    means = []
+    stds = []
+
+    # For each episode index, compile the rewards from each run that has that index
+    for batch_idx in range(max_len):
+        batch_rewards = []
+        for arr in reward_arrays:
+            if batch_idx < len(arr):
+                batch_rewards.append(arr[batch_idx])
+        # Compute the mean and standard deviation across runs
+        if batch_rewards:
+            means.append(np.mean(batch_rewards))
+            stds.append(np.std(batch_rewards))
+        else:
+            # If no runs have this episode index, break
+            break
+
+    # X-axis will simply be the episode indices
+    batches = np.arange(1, len(means) + 1)
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(batches, means, label="Mean Batch Reward")
+    # Draw a shaded region for mean ± standard deviation
+    plt.fill_between(
+        batches,
+        np.array(means) - np.array(stds),
+        np.array(means) + np.array(stds),
+        alpha=0.2,
+        label="±1 Std. Dev."
+    )
+
+    plt.title("Rewards vs. Batches")
+    plt.xlabel("Batch Index")
+    plt.ylabel("Reward")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
 
