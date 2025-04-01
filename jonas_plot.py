@@ -6,6 +6,7 @@ import glob
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import argparse
 
 
 def read_progress_csv(filepath):
@@ -74,3 +75,23 @@ def plot_rewards(reward_arrays):
     plt.tight_layout()
     plt.show()
 
+def main():
+    parser = argparse.ArgumentParser(description="Plot rewards from monitor.csv files.")
+    parser.add_argument(
+        "-d",
+        "--directory",
+        type=str,
+        default=".",
+        help="Directory in which to search for monitor.csv files."
+    )
+    args = parser.parse_args()
+
+    file_paths = collect_all_progress_files(args.directory)
+    if not file_paths:
+        print("No monitor.csv files found in the current directory.")
+        return
+    reward_runs = [read_progress_csv(fp) for fp in file_paths]
+    plot_rewards(reward_runs)
+
+if __name__ == "__main__":
+    main()
