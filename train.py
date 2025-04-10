@@ -86,6 +86,7 @@ def train(
     #store metadata of the run
     metadata = {"timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "domain_randomization": domain_randomization,
+                "transfer_learned_from:": load,
                 "config": load_config()}
     with open(logdir + "/metadata.json", "w") as f:
         json.dump(metadata, f)   
