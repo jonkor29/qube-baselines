@@ -1,0 +1,1 @@
+Average mean_ep_reward per batch for all simulation runs on QubeSwingupEnv wih 3e6 steps.

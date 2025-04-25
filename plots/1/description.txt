@@ -1,0 +1,3 @@
+The plot is regarding the QubeSwingupEnv.
+The plot shows the simulated run, from 3e6 steps and seed 667.
+This is then compared to almost 50000 steps on the hardware, using transfer learning.
