@@ -54,7 +54,7 @@ def compute_reward_statistics(reward_arrays):
     batches = np.arange(1, len(means) + 1)
     return batches, means, stds
 
-def plot_multiple_configs(dir_label_pairs, num_batches_to_plot=None):
+def plot_multiple_configs(dir_label_batches_pairs):
     """
     For each (directory, label) pair:
       1) Collect all progress.csv files
@@ -65,7 +65,7 @@ def plot_multiple_configs(dir_label_pairs, num_batches_to_plot=None):
     """
     plt.figure(figsize=(8, 5))
 
-    for directory, label in dir_label_pairs:
+    for directory, label, num_batches in dir_label_batches_pairs:
         file_paths = collect_all_progress_files(directory)
         if not file_paths:
             print(f"No progress.csv files found in '{directory}', skipping.")
@@ -76,10 +76,10 @@ def plot_multiple_configs(dir_label_pairs, num_batches_to_plot=None):
 
         # Compute the statistics
         batches, means, stds = compute_reward_statistics(reward_runs)
-        if num_batches_to_plot is not None:
-            batches = batches[:num_batches_to_plot]
-            means = means[:num_batches_to_plot]
-            stds = stds[:num_batches_to_plot]
+        if num_batches:
+            batches = batches[:num_batches]
+            means = means[:num_batches]
+            stds = stds[:num_batches]
         
 
         # Plot on the same figure
@@ -121,8 +121,9 @@ def main():
         "-nb",
         "--num-batches",
         type=int,
+        nargs="+",
         default=None,
-        help="Number of batches to plot. If not specified, all batches will be plotted."
+        help="Number of batches to plot for each corresponding directory. If 0, all batches will be plotted."
     )
     args = parser.parse_args()
 
@@ -131,9 +132,15 @@ def main():
         labels = [f"Run {i}" for i in range(len(args.directories))]
     else:
         labels = args.labels
+    if args.num_batches is None or len(args.num_batches) != len(args.directories):
+        # Create default num_batches if not provided or mismatch in length
+        print("Warning: num_batches length does not match number of directories, setting all to 0")
+        num_batches = [0 for _ in range(len(args.directories))]
+    else:
+        num_batches = args.num_batches
 
-    dir_label_pairs = list(zip(args.directories, labels))
-    plot_multiple_configs(dir_label_pairs, args.num_batches)
+    dir_label_pairs = list(zip(args.directories, labels, num_batches))
+    plot_multiple_configs(dir_label_pairs)
 
 if __name__ == "__main__":
     main()
