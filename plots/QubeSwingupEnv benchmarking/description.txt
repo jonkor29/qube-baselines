@@ -1,0 +1,8 @@
+Here are some benchmarks for the QubeSwingupEnv on sim and transfer learn to HW.
+- The sim_3e6_all_seeds_individually plot shows four runs individually with 3e6 steps in simulation. Seeds are listed in the plot.
+- sim_3e6_averages shows the empirical expectation and std dev.
+- sim_3e6_tf_hw_1e6_N=4 shows the agents that were transfer learned from sim and then on HW, the reason for the small amount of batches is the bug that made it hard to train for long periods of time. 
+236 batches was the number of batches they all had in common (that's were the first agent git an error from the pendulum)
+
+- sim_3e6_and_tf_hw_1e6_appended_N=4 shows the reward for the agents for both sim and when they continued to train on HW afterwards
+- The agents that were transferlearned/finetuned on HW have seeds 404, 675, 978, 984 
