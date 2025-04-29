@@ -1,0 +1,1 @@
+{"timestamp": "2025-04-28 18:23:48", "domain_randomization": false, "transfer_learned_from:": "/home/jonas/Masteroppgave/qube-baselines/logs/simulator/QubeSwingupEnv/3e6/seed-551/model.pkl", "config": {"board_type": "qube_servo3_usb", "max_voltage": 3, "Rm": 7.5, "kt": 0.042, "km": 0.042, "mr": 0.095, "Lr": 0.085, "Dr": 0.00027, "mp": 0.024, "Lp": 0.129, "Dp": 5e-05, "g": 9.81}}
