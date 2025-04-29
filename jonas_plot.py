@@ -54,7 +54,7 @@ def compute_reward_statistics(reward_arrays):
     batches = np.arange(1, len(means) + 1)
     return batches, means, stds
 
-def plot_multiple_configs(dir_label_batches_pairs):
+def plot_multiple_configs(dir_label_batches_pairs, append=False):
     """
     For each (directory, label) pair:
       1) Collect all progress.csv files
@@ -64,7 +64,7 @@ def plot_multiple_configs(dir_label_batches_pairs):
     All on the same figure.
     """
     plt.figure(figsize=(8, 5))
-
+    last_x = 0
     for directory, label, num_batches in dir_label_batches_pairs:
         file_paths = collect_all_progress_files(directory)
         if not file_paths:
@@ -80,8 +80,8 @@ def plot_multiple_configs(dir_label_batches_pairs):
             batches = batches[:num_batches]
             means = means[:num_batches]
             stds = stds[:num_batches]
-        
-
+        if append:
+            batches = np.array(batches) + last_x
         # Plot on the same figure
         plt.plot(batches, means, label=label)
         plt.fill_between(
@@ -90,6 +90,8 @@ def plot_multiple_configs(dir_label_batches_pairs):
             np.array(means) + np.array(stds),
             alpha=0.2
         )
+
+        last_x = batches[-1]
 
     plt.title("Rewards vs. Batches")
     plt.xlabel("Batch Index")
@@ -125,6 +127,13 @@ def main():
         default=None,
         help="Number of batches to plot for each corresponding directory. If 0, all batches will be plotted."
     )
+    parser.add_argument(
+        "-a",
+        "--append",
+        action="store_true",
+        default=False,
+        help="Append to the end of the existing plot instead of starting at x=0. Runs in the order specified in the directories argument."
+    )
     args = parser.parse_args()
 
     if args.labels is None or len(args.labels) != len(args.directories):
@@ -139,8 +148,8 @@ def main():
     else:
         num_batches = args.num_batches
 
-    dir_label_pairs = list(zip(args.directories, labels, num_batches))
-    plot_multiple_configs(dir_label_pairs)
+    dir_label_batches_pairs = list(zip(args.directories, labels, num_batches))
+    plot_multiple_configs(dir_label_batches_pairs, append=args.append)
 
 if __name__ == "__main__":
     main()
