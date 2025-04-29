@@ -101,6 +101,24 @@ def plot_multiple_configs(dir_label_batches_pairs, append=False):
     plt.tight_layout()
     plt.show()
 
+def generate_default_label(dirpath):
+    """
+    Attempt to parse a directory path of the form:
+        /.../logs/hardware/QubeSwingupEnv/1e6/seed-984
+    Returning a label like:
+        hardware/QubeSwingupEnv/1e6/seed-984
+    Falls back to "UnknownRun" if parsing fails.
+    """
+    label = "UnknownRun"
+    parts = dirpath.split("/")
+    try:
+        logs_idx = parts.index("logs")
+        # everything that comes after "logs" is joined into the label
+        label = "/".join(parts[logs_idx + 1 :])
+    except (ValueError, IndexError):
+        pass
+    return label
+
 def main():
     parser = argparse.ArgumentParser(description="Plot rewards from monitor.csv files.")
     parser.add_argument(
@@ -138,7 +156,7 @@ def main():
 
     if args.labels is None or len(args.labels) != len(args.directories):
         # Create default labels if not provided or mismatch in length
-        labels = [f"Run {i}" for i in range(len(args.directories))]
+        labels = [generate_default_label(dirpath) for dirpath in args.directories]
     else:
         labels = args.labels
     if args.num_batches is None or len(args.num_batches) != len(args.directories):
