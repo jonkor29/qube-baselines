@@ -54,7 +54,7 @@ def compute_reward_statistics(reward_arrays):
     batches = np.arange(1, len(means) + 1)
     return batches, means, stds
 
-def plot_multiple_configs(dir_label_pairs):
+def plot_multiple_configs(dir_label_pairs, num_batches_to_plot=None):
     """
     For each (directory, label) pair:
       1) Collect all progress.csv files
@@ -76,6 +76,11 @@ def plot_multiple_configs(dir_label_pairs):
 
         # Compute the statistics
         batches, means, stds = compute_reward_statistics(reward_runs)
+        if num_batches_to_plot is not None:
+            batches = batches[:num_batches_to_plot]
+            means = means[:num_batches_to_plot]
+            stds = stds[:num_batches_to_plot]
+        
 
         # Plot on the same figure
         plt.plot(batches, means, label=label)
@@ -97,6 +102,7 @@ def plot_multiple_configs(dir_label_pairs):
 def main():
     parser = argparse.ArgumentParser(description="Plot rewards from monitor.csv files.")
     parser.add_argument(
+        "-d",
         "--directories",
         type=str,
         nargs="+",
@@ -104,11 +110,19 @@ def main():
         help="List of directories in which to search for progress.csv files."
     )
     parser.add_argument(
+        "-l",
         "--labels",
         type=str,
         nargs="+",
         default=None,
         help="List of labels corresponding to each directory."
+    )
+    parser.add_argument(
+        "-nb",
+        "--num-batches",
+        type=int,
+        default=None,
+        help="Number of batches to plot. If not specified, all batches will be plotted."
     )
     args = parser.parse_args()
 
@@ -119,7 +133,7 @@ def main():
         labels = args.labels
 
     dir_label_pairs = list(zip(args.directories, labels))
-    plot_multiple_configs(dir_label_pairs)
+    plot_multiple_configs(dir_label_pairs, args.num_batches)
 
 if __name__ == "__main__":
     main()
