@@ -1,0 +1,3 @@
+- agents 426, 551, 667, 857 were simulated for 3e6 steps with all simulation/physics parameters according to data sheets.
+- then they were transfer learned for 1e6 steps on a simulation with double mass mp, for the pendulum link.
+- the transfer-learned agents are agents 95, 314, 362, 885 in simulator/QubeSwingupEnv/1e6
