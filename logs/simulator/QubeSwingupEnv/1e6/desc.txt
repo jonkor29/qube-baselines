@@ -1,0 +1,9 @@
+inside here there are runs from the sim2real simulator (ie. wrong parameters)
+
+An agent was first trained on the simulator with the correct params and then transfer-learned on a sim with wrong params and put here.
+
+The seeds are:
+- 95
+- 314
+- 362
+- 885
