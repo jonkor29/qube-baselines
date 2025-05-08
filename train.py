@@ -87,7 +87,9 @@ def train(
     metadata = {"timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "domain_randomization": domain_randomization,
                 "transfer_learned_from:": load,
+                "p_phi": (p_phi.mean.tolist(), p_phi.cov.tolist()) if p_phi is not None else None,
                 "config": load_config()}
+    os.makedirs(logdir, exist_ok=True)
     with open(logdir + "/metadata.json", "w") as f:
         json.dump(metadata, f)   
         
