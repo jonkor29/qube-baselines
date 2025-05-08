@@ -58,10 +58,10 @@ def init_save_callback(logdir, batch_size, save_interval):
 
 
 def train(
-    env, num_timesteps, hardware, logdir, save, save_interval, load, seed, domain_randomization, tensorboard
+    env, num_timesteps, hardware, logdir, save, save_interval, load, seed, domain_randomization, tensorboard, p_phi=None
 ):
     def make_env():
-        env_out = env(use_simulator=not hardware, domain_randomization=domain_randomization, frequency=250)
+        env_out = env(use_simulator=not hardware, domain_randomization=domain_randomization, frequency=250, p_phi=p_phi)
         env_out = bench.Monitor(env_out, logger.get_dir(), allow_early_resets=True)
         return env_out
 
