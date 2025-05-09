@@ -92,6 +92,42 @@ def sim_rollout(env, model, xsi):
     
     return np.array(traj)
 
+def D(traj_xi, traj_real):
+    """
+    Discrepancy function to compare the real and simulated trajectories.
+    args:
+        traj_xi: The simulated trajectory. shape: (T_sim, 1, 4)
+        traj_real: The real trajectory. shape: (T_real, 1, 4)
+    returns:
+        D: The discrepancy between the two trajectories.
+    """
+    #align the two trajectories
+    T = min([traj_xi.shape[0], traj_real.shape[0]])
+    traj_xi = traj_xi[:T, :, :] #shape: (T, 1, 4)
+    traj_real = traj_real[:T, :, :] #shape: (T, 1, 4)
+
+    #Constants
+    wl1 = 0.5
+    wl2 = 1.0
+    W = np.array([1, 1, 0.5, 0.5]) #theta, alpha, theta_dot, alpha_dot, dim: (4,)
+    diff = traj_xi - traj_real #(T, 1, 4)
+    #W*diff -> (4,) * (T, 1, 4) = (T, 1, 4)
+    assert diff.shape == (T, 1, 4), f"Diff shape mismatch: {diff.shape} != {(T, 1, 4)}"
+    assert np.linalg.norm(W*diff, ord=1, axis=2).shape == (T, 1), f"Weighted diff shape mismatch: {np.linalg.norm(W*diff, ord=1, axis=2).shape} != {(T, 1)}"
+    assert np.linalg.norm(W*diff, ord=2, axis=2).shape == (T, 1), f"Weighted diff shape mismatch: {np.linalg.norm(W*diff, ord=2, axis=2).shape} != {(T, 1)}"
+    
+    l1_term = np.sum(np.linalg.norm(W*diff, ord=1, axis=2)) #dim: (T, 1) before sum
+    l2_term = np.sum(np.power(np.linalg.norm(W*diff, ord=2, axis=2), 2)) #dim: (T, 1) before sum
+    D = wl1*l1_term + wl2*l2_term
+
+    assert diff.shape == traj_xi.shape, f"Diff shape mismatch: {diff.shape} != {traj_xi.shape}"
+    assert (W*diff).shape == (traj_xi.shape[0], traj_xi.shape[1], traj_xi.shape[2]), f"Weighted diff shape mismatch: {(W*diff).shape} != {(traj_xi.shape[0], traj_xi.shape[1], traj_xi.shape[2])}"
+    assert np.isscalar(l1_term), f"l1_term is not a scalar: {l1_term}"
+    assert np.isscalar(l2_term), f"l2_term is not a scalar: {l2_term}"
+    assert np.isscalar(D), f"D is not a scalar: {D}"
+    
+    return D
+
 def main():
     config = load_config("config.yaml")
     mu = np.array([config['mp']]) #mean of the distribution
@@ -121,8 +157,8 @@ def main():
             load = None
         logger.configure(logdir, ["stdout", "log", "csv", "tensorboard"])
         
-        #env <- Simulatioin(p_phi)
-        #pi_theta_p_phi <- RL(env)
+        #line4: env <- Simulatioin(p_phi)
+        #line5: pi_theta_p_phi <- RL(env)
         model, env = train(
             env=QubeSwingupEnv,
             num_timesteps=2048,
@@ -138,10 +174,12 @@ def main():
         )
         env.close()
 
-        #tau_real <- RealRollout(pi_theta_p_phi)
+        #line6: tau_real <- RealRollout(pi_theta_p_phi)
         traj_real = real_rollout(QubeSwingupEnv, model, use_hardware=False)
+        #line7: xsi <- p_phi.sample()
         xsi = np.array([p_phi.rvs(size=1)])
         print("xsi: ", xsi)
+        #line8: tau_xsi <- SimRollout(pi_theta_p_phi, xsi)
         traj_xsi = sim_rollout(QubeSwingupEnv, model, xsi=xsi)
 
 
