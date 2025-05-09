@@ -1,6 +1,7 @@
 #Scientific computing
 import numpy as np
 import time
+import os
 
 from scipy.stats import multivariate_normal
 
@@ -73,10 +74,15 @@ phi = (mu, sigma)
 p_phi = multivariate_normal(mean=phi[0], cov=phi[1])
 sample = p_phi.rvs(size=1)
 
-seed = np.random.randint(0, 1000)
-save_interval = 5e4
+# Loop to find an unused seed
 env_name = "QubeSwingupEnv"
-base_logdir = f"logs/SimOpt/{env_name}/seed-{seed}"
+while True:
+    seed = 666#np.random.randint(1, 1000)
+    base_logdir = f"logs/SimOpt/{env_name}/seed-{seed}"
+    if not os.path.exists(base_logdir):
+        set_global_seeds(seed)
+        break
+save_interval = 5e4
 
 for i in range(N_simopt):    
     logdir = f"{base_logdir}/iter-{i}"
