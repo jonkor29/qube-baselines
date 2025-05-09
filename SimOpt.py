@@ -62,70 +62,74 @@ def real_rollout(env, model, use_hardware=True, load=None):
     
     return np.array(traj)
 
+def main():
+    config = load_config("config.yaml")
+    mu = np.array([config['mp']]) #mean of the distribution
+    print("mu: ", mu)
+    # ------------- SimOpt Initialization ---------------
 
-config = load_config("config.yaml")
-mu = np.array([config['mp']]) #mean of the distribution
-print("mu: ", mu)
-# ------------- SimOpt Initialization ---------------
+    N_simopt = 4 #number of SimOpt iterations
+    sigma = np.diag(np.ones(mu.shape[0])*0.000025) #0.5 as initial value is taken from paper.
+    phi = (mu, sigma)
+    p_phi = multivariate_normal(mean=phi[0], cov=phi[1])
+    sample = p_phi.rvs(size=1)
 
-N_simopt = 10 #number of SimOpt iterations
-sigma = np.diag(np.ones(mu.shape[0])*0.000025) #0.5 as initial value is taken from paper.
-phi = (mu, sigma)
-p_phi = multivariate_normal(mean=phi[0], cov=phi[1])
-sample = p_phi.rvs(size=1)
+    # Loop to find an unused seed
+    env_name = "QubeSwingupEnv"
+    while True:
+        seed = 666#np.random.randint(1, 1000)
+        base_logdir = f"logs/SimOpt/{env_name}/seed-{seed}"
+        if not os.path.exists(base_logdir):
+            set_global_seeds(seed)
+            break
+    save_interval = 5e4
 
-# Loop to find an unused seed
-env_name = "QubeSwingupEnv"
-while True:
-    seed = 666#np.random.randint(1, 1000)
-    base_logdir = f"logs/SimOpt/{env_name}/seed-{seed}"
-    if not os.path.exists(base_logdir):
-        set_global_seeds(seed)
-        break
-save_interval = 5e4
+    for i in range(N_simopt):    
+        logdir = f"{base_logdir}/iter-{i}"
+        if i >= 1:
+            load = f"{base_logdir}/iter-{i-1}/model.pkl"
+        else:
+            load = None
+        logger.configure(logdir, ["stdout", "log", "csv", "tensorboard"])
+        
+        #env <- Simulatioin(p_phi)
+        #pi_theta_p_phi <- RL(env)
+        model, env = train(
+            env=QubeSwingupEnv,
+            num_timesteps=2048,
+            hardware=False,
+            logdir=logdir,
+            save=True,
+            save_interval=int(np.ceil(save_interval / 2048)),
+            load=load,
+            seed=seed,
+            domain_randomization=True,
+            tensorboard=None,
+            p_phi=p_phi
+        )
+        env.close()
 
-for i in range(N_simopt):    
-    logdir = f"{base_logdir}/iter-{i}"
-    if i >= 1:
-        load = f"{base_logdir}/iter-{i-1}/model.pkl"
-    else:
-        load = None
-    logger.configure(logdir, ["stdout", "log", "csv", "tensorboard"])
+        #tau_real <- RealRollout(pi_theta_p_phi)
+        traj_real = real_rollout(QubeSwingupEnv, model, use_hardware=True)
+        print("traj_real: ", traj_real.shape) #(num_timesteps, 1, 4) (middle dimension is the number of vecenvs, but we only use one env at a time)
+        print("max(traj_real): ", np.max(traj_real, axis=0))
+        print("min(traj_real): ", np.min(traj_real, axis=0))
+        print("traj_real[0:10]", traj_real[0:10])
+        print("traj_real[-10:-1]", traj_real[-10:-1])
+
+    """
+
+    # ------------- SimOpt Main Loop ----------------
+    for i in range(N_simopt):
+        env = QubeSwingupEnv(dist=p_phi, frequency=...)
+        policy = train(env)
+
+        traj_real = RealRollout(policy)
+        fitness_func = create_fitness_fn(traj_real, policy)
+        best_solution, best_fitness = cma.search()
+        phi = (best_solution, SIGMA) #find a way to extract an appropriate sigma
+
+    """
     
-    #env <- Simulatioin(p_phi)
-    #pi_theta_p_phi <- RL(env)
-    model, env = train(
-        env=QubeSwingupEnv,
-        num_timesteps=3000000,
-        hardware=False,
-        logdir=logdir,
-        save=True,
-        save_interval=int(np.ceil(save_interval / 2048)),
-        load=load,
-        seed=seed,
-        domain_randomization=True,
-        tensorboard=None,
-        p_phi=p_phi
-    )
-    env.close()
-
-    #tau_real <- RealRollout(pi_theta_p_phi)
-    traj_real = real_rollout(QubeSwingupEnv, model, use_hardware=True)
-    print("traj_real: ", traj_real.shape) #(num_timesteps, 1, 4) (middle dimension is the number of vecenvs, but we only use one env at a time)
-    print("max(traj_real): ", np.max(traj_real, axis=0))
-    print("min(traj_real): ", np.min(traj_real, axis=0))
-    print("traj_real[0:10]", traj_real[0:10])
-    print("traj_real[-10:-1]", traj_real[-10:-1])
-
-"""
-
-# ------------- SimOpt Main Loop ----------------
-for i in range(N_simopt):
-    env = QubeSwingupEnv(dist=p_phi, frequency=...)
-	policy = train(env)
-	traj_real = RealRollout(policy)
-	fitness_func = create_fitness_fn(traj_real, policy)
-	best_solution, best_fitness = cma.search()
-	phi = (best_solution, SIGMA) #find a way to extract an appropriate sigma
-
-"""
+if __name__ == "__main__":
+    main()
