@@ -81,7 +81,7 @@ base_logdir = f"logs/SimOpt/{env_name}/seed-{seed}"
 for i in range(N_simopt):    
     logdir = f"{base_logdir}/iter-{i}"
     if i >= 1:
-        load = f"{base_logdir}/iter-{i-1}"
+        load = f"{base_logdir}/iter-{i-1}/model.pkl"
     else:
         load = None
     logger.configure(logdir, ["stdout", "log", "csv", "tensorboard"])
@@ -95,7 +95,7 @@ for i in range(N_simopt):
         logdir=logdir,
         save=True,
         save_interval=int(np.ceil(save_interval / 2048)),
-        load=None,
+        load=load,
         seed=seed,
         domain_randomization=True,
         tensorboard=None,
