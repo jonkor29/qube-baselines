@@ -101,8 +101,7 @@ def main():
     N_simopt = 4 #number of SimOpt iterations
     sigma = np.diag(np.ones(mu.shape[0])*0.000025) #0.5 as initial value is taken from paper.
     phi = (mu, sigma)
-    p_phi = multivariate_normal(mean=phi[0], cov=phi[1])
-    sample = p_phi.rvs(size=1)
+    p_phi = multivariate_normal(mean=phi[0], cov=phi[1], seed=42)
 
     # Loop to find an unused seed
     env_name = "QubeSwingupEnv"
