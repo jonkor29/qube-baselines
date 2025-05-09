@@ -33,7 +33,10 @@ for i in range(N_simopt):
         load = f"{base_logdir}/iter-{i-1}"
     else:
         load = None
-
+    logger.configure(logdir, ["stdout", "log", "csv", "tensorboard"])
+    
+    #env <- Simulatioin(p_phi)
+    #pi_theta_p_phi <- RL(env)
     model, env = train(
         env=QubeSwingupEnv,
         num_timesteps=3000000,
@@ -47,7 +50,6 @@ for i in range(N_simopt):
         tensorboard=None,
         p_phi=p_phi
     )
-    logger.configure(logdir, ["stdout", "log", "csv", "tensorboard"])
     env.close()
 
 
