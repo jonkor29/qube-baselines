@@ -54,7 +54,7 @@ def compute_reward_statistics(reward_arrays):
     batches = np.arange(1, len(means) + 1)
     return batches, means, stds
 
-def plot_multiple_configs(dir_label_batches_pairs, append=False):
+def plot_multiple_configs(dir_label_batches_pairs, append=False, title=None):
     """
     For each (directory, label) pair:
       1) Collect all progress.csv files
@@ -93,7 +93,7 @@ def plot_multiple_configs(dir_label_batches_pairs, append=False):
 
         last_x = batches[-1]
 
-    plt.title("Rewards vs. Batches")
+    plt.title(title)
     plt.xlabel("Batch Index")
     plt.ylabel("Reward")
     plt.legend()
@@ -152,6 +152,13 @@ def main():
         default=False,
         help="Append to the end of the existing plot instead of starting at x=0. Runs in the order specified in the directories argument."
     )
+    parser.add_argument(
+        "-t",
+        "--title",
+        type=str,
+        default="Rewards vs. Batches",
+        help="Title of the plot."
+    )
     args = parser.parse_args()
 
     if args.labels is None or len(args.labels) != len(args.directories):
@@ -167,7 +174,7 @@ def main():
         num_batches = args.num_batches
 
     dir_label_batches_pairs = list(zip(args.directories, labels, num_batches))
-    plot_multiple_configs(dir_label_batches_pairs, append=args.append)
+    plot_multiple_configs(dir_label_batches_pairs, append=args.append, title=args.title)
 
 if __name__ == "__main__":
     main()
