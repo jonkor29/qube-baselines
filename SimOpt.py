@@ -35,7 +35,7 @@ def real_rollout(env, model, use_hardware=True, load=None):
     """
     # Parse command line args
     def make_env():
-        env_out = env(use_simulator=not use_hardware, frequency=250)
+        env_out = env(use_simulator=not use_hardware, frequency=250, deterministic_resets=True)
         return env_out
     try:
         env = DummyVecEnv([make_env])
@@ -50,7 +50,7 @@ def real_rollout(env, model, use_hardware=True, load=None):
         obs[:] = env.reset()
         traj = [obs.copy()]
         while True:
-            actions = model.step(obs)[0]
+            actions, _states = model.predict(obs, deterministic=True)
             obs[:], reward, done, _ = env.step(actions)
             traj.append(obs.copy())
 
@@ -66,12 +66,12 @@ def real_rollout(env, model, use_hardware=True, load=None):
     
     return np.array(traj)
 
-def sim_rollout(env, model, xsi):
+def sim_rollout(env, model, xi):
     #trick: pass the env i distribution p_phi as usual but use p_phi~N(xi, 0)
-    xsi = multivariate_normal(mean=xsi, cov=np.diag(np.zeros(xsi.shape[0])), allow_singular=True) #TODO: this is a hack to pass a constant sample xsi and should be replaced
+    xi = multivariate_normal(mean=xi, cov=np.diag(np.zeros(xi.shape[0])), allow_singular=True) #TODO: this is a hack to pass a constant sample xi and should be replaced
 
     def make_env():
-        env_out = env(use_simulator=True, frequency=250, domain_randomization=True, p_phi=xsi)
+        env_out = env(use_simulator=True, frequency=250, domain_randomization=True, p_phi=xi, deterministic_resets=True)
         return env_out
 
     try:
@@ -81,7 +81,7 @@ def sim_rollout(env, model, xsi):
         obs[:] = env.reset()
         traj = [obs.copy()]
         while True:
-            actions = model.step(obs)[0]
+            actions, _states = model.predict(obs, deterministic=True)
             obs[:], reward, done, _ = env.step(actions)
             traj.append(obs.copy())
             env.render() #NOTE: for debuigging purpose
