@@ -13,6 +13,8 @@ from stable_baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from stable_baselines.common.policies import MlpPolicy
 from stable_baselines.ppo2 import PPO2
 
+import tensorflow as tf
+tf.compat.v1.disable_eager_execution()
 
 
 from load_config import load_config
@@ -138,6 +140,33 @@ def D(traj_xi, traj_real):
     
     return D
 
+def create_fitness_fn(traj_real, policy):
+    """
+    Create a fitness function to be used in the CMA-ES algorithm.
+    args:
+        traj_real: The real trajectory.
+        policy: The "policy" or openai gym model to be used for the simulation.
+    returns:
+        fitness_fn: The fitness function.
+    """
+    def fitness_fn(xi):
+        """
+		Args:
+		  xi: tf.Tensor of shape (M, N)
+		
+		Returns:
+		  Fitness evaluations: tf.Tensor of shape (M,)
+			Where M is the number of solutions to evaluate and N is the dimension of a single solution.
+		"""
+        #convert xi to a numpy array
+        with tf.compat.v1.Session() as sess:
+            xi = sess.run(xi)
+
+        traj_xi = sim_rollout(QubeSwingupEnv, policy, xi=xi)
+        D_value = D(traj_xi, traj_real)
+        return D_value
+    return fitness_fn
+
 def main():
     config = load_config("config.yaml")
     mu = np.array([config['mp']]) #mean of the distribution
@@ -188,13 +217,25 @@ def main():
         env.close()
 
         #line6: tau_real <- RealRollout(pi_theta_p_phi)
+        #set environment to to double mass
+        os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass" #force double mass when using simulator
+        #os.environ["QUANSER_HW"] = "qube_servo3_usb"
         traj_real = real_rollout(QubeSwingupEnv, model, use_hardware=False)
         #line7: xi <- p_phi.sample()
         xi = np.array([0.024])#np.array([p_phi.rvs(size=1)])
         print("xi: ", xi)
         #line8: tau_xi <- SimRollout(pi_theta_p_phi, xi)
+        os.environ["QUANSER_HW"] = "qube_servo3_usb" 
         traj_xi = sim_rollout(QubeSwingupEnv, model, xi=xi)
+        fitness_fn = create_fitness_fn(traj_real, model)
+        fitness = fitness_fn(tf.convert_to_tensor(xi))
 
+        print("fitness: ", fitness)
+        print("D: ", D(traj_xi, traj_real))
+
+        
+        #################DEBUG PRINT#######################
+            
         print("traj_xi: ", traj_xi)
         print("traj_real: ", traj_real)
         #calculate average differences for the trajectories along the time axis, for each dimension
