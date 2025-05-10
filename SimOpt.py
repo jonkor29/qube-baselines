@@ -18,6 +18,10 @@ from stable_baselines.ppo2 import PPO2
 from load_config import load_config
 from train import train
 
+def normalized_angle_diff_rad(a1, a2):
+    diff = a1 - a2
+    # Ensure result is in [-pi, pi]
+    return (diff + np.pi) % (2 * np.pi) - np.pi
 
 def real_rollout(env, model, use_hardware=True, load=None):
     """
@@ -106,6 +110,12 @@ def D(traj_xi, traj_real):
     traj_xi = traj_xi[:T, :, :] #shape: (T, 1, 4)
     traj_real = traj_real[:T, :, :] #shape: (T, 1, 4)
 
+    #calculate the difference between the two trajectories
+    #state: theta, alpha, theta_dot, alpha_dot
+    diff = np.zeros((T, 1, 4))
+    diff[..., 0] = normalized_angle_diff_rad(traj_xi[..., 0], traj_real[..., 0]) #theta
+    diff[..., 1] = normalized_angle_diff_rad(traj_xi[..., 1], traj_real[..., 1]) #alpha
+    diff[..., 2:] = traj_xi[..., 2:] - traj_real[..., 2:] #theta_dot, alpha_dot 
     #Constants
     wl1 = 0.5
     wl2 = 1.0
