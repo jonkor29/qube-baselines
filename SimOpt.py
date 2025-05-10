@@ -119,7 +119,7 @@ def D(traj_xi, traj_real):
     #Constants
     wl1 = 0.5
     wl2 = 1.0
-    W = np.array([1, 1, 0.5, 0.5]) #theta, alpha, theta_dot, alpha_dot, dim: (4,)
+    W = np.array([1, 1, 0, 0]) #theta, alpha, theta_dot, alpha_dot, dim: (4,)
     diff = traj_xi - traj_real #(T, 1, 4)
     #W*diff -> (4,) * (T, 1, 4) = (T, 1, 4)
     assert diff.shape == (T, 1, 4), f"Diff shape mismatch: {diff.shape} != {(T, 1, 4)}"
