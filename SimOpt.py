@@ -144,10 +144,10 @@ def main():
     print("mu: ", mu)
     # ------------- SimOpt Initialization ---------------
 
-    N_simopt = 4 #number of SimOpt iterations
+    N_simopt = 10 #number of SimOpt iterations
     sigma = np.diag(np.ones(mu.shape[0])*0.000025) #0.5 as initial value is taken from paper.
     phi = (mu, sigma)
-    p_phi = multivariate_normal(mean=phi[0], cov=phi[1], seed=42)
+    p_phi = multivariate_normal(mean=phi[0], cov=phi[1], seed=42, allow_singular=True)
 
     # Loop to find an unused seed
     env_name = "QubeSwingupEnv"
@@ -159,6 +159,9 @@ def main():
             break
     save_interval = 5e4
 
+    Ds = []
+    avg_diffs = []
+    sum_diffs = []
     for i in range(N_simopt):    
         logdir = f"{base_logdir}/iter-{i}"
         if i >= 1:
@@ -166,7 +169,7 @@ def main():
         else:
             load = None
         logger.configure(logdir, ["stdout", "log", "csv", "tensorboard"])
-        
+        load = '/home/jonas/Masteroppgave/qube-baselines/logs/simulator/QubeSwingupEnv/3e6/seed-667/model.pkl'#TODO: remove
         #line4: env <- Simulatioin(p_phi)
         #line5: pi_theta_p_phi <- RL(env)
         model, env = train(
@@ -186,12 +189,36 @@ def main():
 
         #line6: tau_real <- RealRollout(pi_theta_p_phi)
         traj_real = real_rollout(QubeSwingupEnv, model, use_hardware=False)
-        #line7: xsi <- p_phi.sample()
-        xsi = np.array([p_phi.rvs(size=1)])
-        print("xsi: ", xsi)
-        #line8: tau_xsi <- SimRollout(pi_theta_p_phi, xsi)
-        traj_xsi = sim_rollout(QubeSwingupEnv, model, xsi=xsi)
+        #line7: xi <- p_phi.sample()
+        xi = np.array([0.024])#np.array([p_phi.rvs(size=1)])
+        print("xi: ", xi)
+        #line8: tau_xi <- SimRollout(pi_theta_p_phi, xi)
+        traj_xi = sim_rollout(QubeSwingupEnv, model, xi=xi)
 
+        print("traj_xi: ", traj_xi)
+        print("traj_real: ", traj_real)
+        #calculate average differences for the trajectories along the time axis, for each dimension
+        T = min([traj_xi.shape[0], traj_real.shape[0]])
+        traj_xi_length = traj_xi.shape[0]
+        traj_real_length = traj_real.shape[0]
+        print("traj_xi_length: ", traj_xi_length)
+        print("traj_real_length: ", traj_real_length)
+        traj_xi = traj_xi[:T, :, :]
+        traj_real = traj_real[:T, :, :]
+        avg_diffs.append(np.mean(np.abs(traj_xi - traj_real), axis=0))
+
+        #calculate the diff using the angle difference
+        sum_diff = np.zeros((traj_xi.shape[0], 1, 4))
+        sum_diff[..., 0] = normalized_angle_diff_rad(traj_xi[..., 0], traj_real[..., 0])
+        sum_diff[..., 1] = normalized_angle_diff_rad(traj_xi[..., 1], traj_real[..., 1])
+        sum_diff[..., 2:] = traj_xi[..., 2:] - traj_real[..., 2:]
+        sum_diffs = np.sum(np.abs(traj_xi - traj_real), axis=0)
+        Ds.append(D(traj_xi, traj_real))
+        print("D's: ", Ds)
+        print("avg_diffs: ", avg_diffs)
+        print("sum_diffs: ", sum_diffs)
+        print("avg D: ", np.mean(Ds))
+    
 
     """
 
