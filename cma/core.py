@@ -128,6 +128,10 @@ class CMA(object):
         self._prev_sigma_val_for_term = None
         self._prev_D_val_for_term = None
 
+        #used for logging times
+        self._t0 = None
+        self._t1 = None
+
     def init(self):
         if self._initialized:
             raise ValueError('Already initialized - call reset method to start over')
