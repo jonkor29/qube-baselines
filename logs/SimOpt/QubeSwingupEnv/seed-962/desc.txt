@@ -1,0 +1,1 @@
+Run N=9 independant runs. Pendulum mass mp varying according to p_phi. See metadata for details.
