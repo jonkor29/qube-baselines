@@ -22,8 +22,15 @@ from load_config import load_config
 from train import train
 
 def normalized_angle_diff_rad(a1, a2):
+    """
+    Calculate the shortest angle difference between two angles that are in the interval [-pi, pi].
+    args:
+        a1: The first angle in radians.
+        a2: The second angle in radians.
+    returns:
+        The shortest angle difference in radians in the interval [-pi, pi].
+    """
     diff = a1 - a2
-    # Ensure result is in [-pi, pi]
     return (diff + np.pi) % (2 * np.pi) - np.pi
 
 def real_rollout(env, model, use_hardware=True, load=None):
@@ -36,7 +43,6 @@ def real_rollout(env, model, use_hardware=True, load=None):
     returns:
         traj: The trajectory of the rollout.
     """
-    # Parse command line args
     def make_env():
         env_out = env(use_simulator=not use_hardware, frequency=250, deterministic_resets=True)
         return env_out
@@ -48,7 +54,6 @@ def real_rollout(env, model, use_hardware=True, load=None):
             model = PPO2(policy=policy, env=env)
             model.load_parameters(load)
 
-        print("Running trained model")
         obs = np.zeros((env.num_envs,) + env.observation_space.shape)
         obs[:] = env.reset()
         traj = [obs.copy()]
@@ -113,12 +118,12 @@ def D(traj_xi, traj_real):
     traj_xi = traj_xi[:T, :, :] #shape: (T, 1, 4)
     traj_real = traj_real[:T, :, :] #shape: (T, 1, 4)
 
-    #calculate the difference between the two trajectories
     #state: theta, alpha, theta_dot, alpha_dot
     diff = np.zeros((T, 1, 4))
     diff[..., 0] = normalized_angle_diff_rad(traj_xi[..., 0], traj_real[..., 0]) #theta
     diff[..., 1] = normalized_angle_diff_rad(traj_xi[..., 1], traj_real[..., 1]) #alpha
     diff[..., 2:] = traj_xi[..., 2:] - traj_real[..., 2:] #theta_dot, alpha_dot 
+    
     #Constants
     wl1 = 0.5
     wl2 = 1.0
@@ -160,7 +165,7 @@ def create_fitness_fn(traj_real, policy):
             xi_batch: NumPy array of shape (M, N) from tf.py_func.
                                     M = population size, N = solution dimension.
         Returns:
-            NumPy array of shape (M,) containing fitness values.
+            NumPy array of shape (M,) containing fitness values of dtype float32.
         """
         num_solutions = xi_batch.shape[0]
         D_values = np.empty(num_solutions, dtype=np.float32)
@@ -195,17 +200,22 @@ def create_fitness_fn(traj_real, policy):
     return fitness_fn_graph_compatible
 
 
-def print_progress_callback(cma_instance, logger):
+def log_progress_callback(cma_instance, ignored_standard_logger):
     generation = cma_instance.generation
-    
+
     if generation == 0:
-        print("CMA-ES Initialization Complete. Starting search...")
+        logger.log("CMA-ES Initialization Complete. Starting search...")
+        cma_instance.t0 = time.time()
     else:
         try:
             current_best_fitness = cma_instance.best_fitness() # Gets fitness of current mean m
             current_mean = cma_instance.get_mean()
             cov_matrix = cma_instance.get_covariance_matrix()
-            print(f"Generation: {generation:4d} | Fitness: {current_best_fitness:.6e} | Mean: {current_mean[0]:.4f} | Cov: {cov_matrix}")
+            population_size = cma_instance.population_size_py if cma_instance.population_size_py else np.floor(8 + 3*np.log(cma_instance.dimension))
+            cma_instance.t1 = time.time()
+            elapsed_time = cma_instance.t1 - cma_instance.t0
+            cma_instance.t0 = cma_instance.t1
+            logger.log(f"Generation: {generation:4d} | Population size: {population_size} Fitness: {current_best_fitness:.6e} | Mean: {current_mean[0]:.4f} | Cov: {cov_matrix} | Time: {elapsed_time}s")
 
         except Exception as e:
             logger.error(f"Error fetching info in callback for generation {generation}: {e}")
@@ -218,8 +228,8 @@ def main():
     # ------------- SimOpt Initialization ---------------
 
     N_simopt = 10 #number of SimOpt iterations
-    sigma = np.diag(np.ones(mu.shape[0])*0.0001)
-    phi = (mu, sigma)
+    sigma_squared = np.diag(np.ones(mu.shape[0])*0.0001)
+    phi = (mu, sigma_squared)
     p_phi = multivariate_normal(mean=phi[0], cov=phi[1], seed=42, allow_singular=True)
 
     # Loop to find an unused seed
@@ -232,19 +242,17 @@ def main():
             break
     save_interval = 5e4
 
-    Ds = []
-    avg_diffs = []
-    sum_diffs = []
-    for i in range(N_simopt):    
-        logdir = f"{base_logdir}/iter-{i}"
-        if i >= 1:
-            load = f"{base_logdir}/iter-{i-1}/model.pkl"
+    for i_simopt in range(N_simopt):    
+        logdir = f"{base_logdir}/iter-{i_simopt}"
+        if i_simopt >= 1:
+            load = f"{base_logdir}/iter-{i_simopt-1}/model.pkl"
         else:
             load = None
         logger.configure(logdir, ["stdout", "log", "csv", "tensorboard"])
-        #load = '/home/jonas/Masteroppgave/qube-baselines/logs/simulator/QubeSwingupEnv/3e6/seed-667/model.pkl'#TODO: remove
+
         #line4: env <- Simulatioin(p_phi)
         #line5: pi_theta_p_phi <- RL(env)
+        logger.log(f"Running RL(env) with p_phi~N({p_phi.mean}, {p_phi.cov})")
         model, env = train(
             env=QubeSwingupEnv,
             num_timesteps=2048,
@@ -259,10 +267,10 @@ def main():
             p_phi=p_phi
         )
         env.close()
-
+        logger.log("Training complete. Starting rollouts...")
         #line6: tau_real <- RealRollout(pi_theta_p_phi)
-        #set environment to to double mass
-        os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass" #force double mass when using simulator
+        #force double mass when using simulator
+        os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass" 
         traj_real = real_rollout(QubeSwingupEnv, model, use_hardware=False)
         #line7: xi <- p_phi.sample()
         xi_0 = np.array([0.024])#np.array([p_phi.rvs(size=1)])
@@ -271,64 +279,32 @@ def main():
         traj_xi_0 = sim_rollout(QubeSwingupEnv, model, xi=xi_0)
         fitness_fn = create_fitness_fn(traj_real, model)
         #fitness = fitness_fn(xi_0)
-        
+        cma_t0 = time.time()
         cma = CMA(
             initial_solution=p_phi.mean.tolist(),
             initial_step_size=1.0,
             fitness_function=fitness_fn,
             enforce_bounds=[[0, 0.100]],
-            termination_no_effect=1e-8,
-            callback_function=print_progress_callback,
+            termination_no_effect=1e-7,
+            callback_function=log_progress_callback,
         )
-        best_solution, best_fitness = cma.search()
-        #write best_solution to file, along with the best fitness, the unoptimized fitness, the unoptimized D-value (should be equal to unoptimized fitness) and the simopt iteration
+        best_solution, best_fitness = cma.search(max_generations=4)
+        logger.log(f"CMA-ES search complete. | SimOpt Iteration: {i_simopt} | Unoptimized D-value: {D(traj_xi_0, traj_real)} | Best solution: {best_solution} | Best fitness: {best_fitness} | Time: {time.time() - cma_t0:.2f}s")
+
+        """        
         with open(f"{base_logdir}/best_solutions.txt", "w") as f:
-            f.write(f"---------SimOpt iteration: {i}-----------\n")
-            f.write(f"Best solution: {best_solution}\n")
-            f.write(f"Best fitness: {best_fitness}\n")
-            #f.write(f"Unoptimized fitness: {fitness}\n")
-            f.write(f"Unoptimized D-value: {D(traj_xi_0, traj_real)}\n")
-            f.write(f"xi_0: {xi_0}\n")
-            f.write(f"traj_xi_0: {traj_xi_0}\n")
-            f.write(f"traj_real: {traj_real}\n")
-            f.write("-------------------------------\n")
-        
-        #update the distribution
-
-        
-        #################DEBUG PRINT#######################
+        f.write(f"---------SimOpt iteration: {i_simopt}-----------\n")
+        f.write(f"Best solution: {best_solution}\n")
+        f.write(f"Best fitness: {best_fitness}\n")
+        #f.write(f"Unoptimized fitness: {fitness}\n")
+        f.write(f"Unoptimized D-value: {D(traj_xi_0, traj_real)}\n")
+        f.write(f"xi_0: {xi_0}\n")
+        f.write(f"traj_xi_0: {traj_xi_0}\n")
+        f.write(f"traj_real: {traj_real}\n")
+        f.write("-------------------------------\n")
         """
-        print("fitness: ", fitness)
-        print("D: ", D(traj_xi, traj_real))
-            
-        print("traj_xi: ", traj_xi)
-        print("traj_real: ", traj_real)
-        #calculate average differences for the trajectories along the time axis, for each dimension
-        T = min([traj_xi.shape[0], traj_real.shape[0]])
-        traj_xi_length = traj_xi.shape[0]
-        traj_real_length = traj_real.shape[0]
-        print("traj_xi_length: ", traj_xi_length)
-        print("traj_real_length: ", traj_real_length)
-        traj_xi = traj_xi[:T, :, :]
-        traj_real = traj_real[:T, :, :]
-        avg_diffs.append(np.mean(np.abs(traj_xi - traj_real), axis=0))
-
-        #calculate the diff using the angle difference
-        sum_diff = np.zeros((traj_xi.shape[0], 1, 4))
-        sum_diff[..., 0] = normalized_angle_diff_rad(traj_xi[..., 0], traj_real[..., 0])
-        sum_diff[..., 1] = normalized_angle_diff_rad(traj_xi[..., 1], traj_real[..., 1])
-        sum_diff[..., 2:] = traj_xi[..., 2:] - traj_real[..., 2:]
-        sum_diffs = np.sum(np.abs(traj_xi - traj_real), axis=0)
-        Ds.append(D(traj_xi, traj_real))
-        print("D's: ", Ds)
-        print("avg_diffs: ", avg_diffs)
-        print("sum_diffs: ", sum_diffs)
-        print("avg D: ", np.mean(Ds))
-        """
-    
 
     """
-
     # ------------- SimOpt Main Loop ----------------
     for i in range(N_simopt):
         env = QubeSwingupEnv(dist=p_phi, frequency=...)
