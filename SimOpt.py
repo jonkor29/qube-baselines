@@ -4,6 +4,7 @@ import time
 import os
 
 from scipy.stats import multivariate_normal
+from cma import CMA
 
 from gym_brt.envs import QubeSwingupEnv
 
@@ -200,7 +201,7 @@ def main():
     # ------------- SimOpt Initialization ---------------
 
     N_simopt = 10 #number of SimOpt iterations
-    sigma = np.diag(np.ones(mu.shape[0])*0.000025) #0.5 as initial value is taken from paper.
+    sigma = np.diag(np.ones(mu.shape[0])*0.0001)
     phi = (mu, sigma)
     p_phi = multivariate_normal(mean=phi[0], cov=phi[1], seed=42, allow_singular=True)
 
@@ -224,7 +225,7 @@ def main():
         else:
             load = None
         logger.configure(logdir, ["stdout", "log", "csv", "tensorboard"])
-        load = '/home/jonas/Masteroppgave/qube-baselines/logs/simulator/QubeSwingupEnv/3e6/seed-667/model.pkl'#TODO: remove
+        #load = '/home/jonas/Masteroppgave/qube-baselines/logs/simulator/QubeSwingupEnv/3e6/seed-667/model.pkl'#TODO: remove
         #line4: env <- Simulatioin(p_phi)
         #line5: pi_theta_p_phi <- RL(env)
         model, env = train(
@@ -245,22 +246,42 @@ def main():
         #line6: tau_real <- RealRollout(pi_theta_p_phi)
         #set environment to to double mass
         os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass" #force double mass when using simulator
-        #os.environ["QUANSER_HW"] = "qube_servo3_usb"
         traj_real = real_rollout(QubeSwingupEnv, model, use_hardware=False)
         #line7: xi <- p_phi.sample()
-        xi = np.array([0.024])#np.array([p_phi.rvs(size=1)])
-        print("xi: ", xi)
+        xi_0 = np.array([0.024])#np.array([p_phi.rvs(size=1)])
         #line8: tau_xi <- SimRollout(pi_theta_p_phi, xi)
         os.environ["QUANSER_HW"] = "qube_servo3_usb" 
-        traj_xi = sim_rollout(QubeSwingupEnv, model, xi=xi)
+        traj_xi_0 = sim_rollout(QubeSwingupEnv, model, xi=xi_0)
         fitness_fn = create_fitness_fn(traj_real, model)
-        fitness = fitness_fn(tf.convert_to_tensor(xi))
-
-        print("fitness: ", fitness)
-        print("D: ", D(traj_xi, traj_real))
+        #fitness = fitness_fn(xi_0)
+        
+        cma = CMA(
+            initial_solution=p_phi.mean.tolist(),
+            initial_step_size=1.0,
+            fitness_function=fitness_fn,
+            enforce_bounds=[[0, 0.100]],
+            termination_no_effect=1e-8,
+        )
+        best_solution, best_fitness = cma.search()
+        #write best_solution to file, along with the best fitness, the unoptimized fitness, the unoptimized D-value (should be equal to unoptimized fitness) and the simopt iteration
+        with open(f"{base_logdir}/best_solutions.txt", "w") as f:
+            f.write(f"---------SimOpt iteration: {i}-----------\n")
+            f.write(f"Best solution: {best_solution}\n")
+            f.write(f"Best fitness: {best_fitness}\n")
+            #f.write(f"Unoptimized fitness: {fitness}\n")
+            f.write(f"Unoptimized D-value: {D(traj_xi_0, traj_real)}\n")
+            f.write(f"xi_0: {xi_0}\n")
+            f.write(f"traj_xi_0: {traj_xi_0}\n")
+            f.write(f"traj_real: {traj_real}\n")
+            f.write("-------------------------------\n")
+        
+        #update the distribution
 
         
         #################DEBUG PRINT#######################
+        """
+        print("fitness: ", fitness)
+        print("D: ", D(traj_xi, traj_real))
             
         print("traj_xi: ", traj_xi)
         print("traj_real: ", traj_real)
@@ -285,6 +306,7 @@ def main():
         print("avg_diffs: ", avg_diffs)
         print("sum_diffs: ", sum_diffs)
         print("avg D: ", np.mean(Ds))
+        """
     
 
     """
