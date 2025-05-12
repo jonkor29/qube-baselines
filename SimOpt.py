@@ -194,6 +194,23 @@ def create_fitness_fn(traj_real, policy):
 
     return fitness_fn_graph_compatible
 
+
+def print_progress_callback(cma_instance, logger):
+    generation = cma_instance.generation
+    
+    if generation == 0:
+        print("CMA-ES Initialization Complete. Starting search...")
+    else:
+        try:
+            current_best_fitness = cma_instance.best_fitness() # Gets fitness of current mean m
+            current_mean = cma_instance.get_mean()
+            cov_matrix = cma_instance.get_covariance_matrix()
+            print(f"Generation: {generation:4d} | Fitness: {current_best_fitness:.6e} | Mean: {current_mean[0]:.4f} | Cov: {cov_matrix}")
+
+        except Exception as e:
+            logger.error(f"Error fetching info in callback for generation {generation}: {e}")
+            print(f"Generation: {generation:4d} | Info: [Error fetching]")
+
 def main():
     config = load_config("config.yaml")
     mu = np.array([config['mp']]) #mean of the distribution
@@ -261,6 +278,7 @@ def main():
             fitness_function=fitness_fn,
             enforce_bounds=[[0, 0.100]],
             termination_no_effect=1e-8,
+            callback_function=print_progress_callback,
         )
         best_solution, best_fitness = cma.search()
         #write best_solution to file, along with the best fitness, the unoptimized fitness, the unoptimized D-value (should be equal to unoptimized fitness) and the simopt iteration
