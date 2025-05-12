@@ -142,30 +142,56 @@ def D(traj_xi, traj_real):
 
 def create_fitness_fn(traj_real, policy):
     """
-    Create a fitness function to be used in the CMA-ES algorithm.
-    args:
-        traj_real: The real trajectory.
-        policy: The "policy" or openai gym model to be used for the simulation.
-    returns:
-        fitness_fn: The fitness function.
-    """
-    def fitness_fn(xi):
-        """
-		Args:
-		  xi: tf.Tensor of shape (M, N)
-		
-		Returns:
-		  Fitness evaluations: tf.Tensor of shape (M,)
-			Where M is the number of solutions to evaluate and N is the dimension of a single solution.
-		"""
-        #convert xi to a numpy array
-        with tf.compat.v1.Session() as sess:
-            xi = sess.run(xi)
+    Create a fitness function compatible with TF1 CMA-ES.
 
-        traj_xi = sim_rollout(QubeSwingupEnv, policy, xi=xi)
-        D_value = D(traj_xi, traj_real)
-        return D_value
-    return fitness_fn
+    Args:
+        traj_real: The real trajectory. np.ndarray.
+        policy: The "policy" or openai gym model to be used for the simulation. 
+
+    Returns:
+        fitness_fn: A function that takes a symbolic tf.Tensor (M, N) and
+                    returns a symbolic tf.Tensor (M,) for fitness values.
+    """
+
+    def _numpy_fitness_calculator(xi_batch):
+        """
+        Args:
+            xi_batch: NumPy array of shape (M, N) from tf.py_func.
+                                    M = population size, N = solution dimension.
+        Returns:
+            NumPy array of shape (M,) containing fitness values.
+        """
+        num_solutions = xi_batch.shape[0]
+        D_values = np.empty(num_solutions, dtype=np.float32)
+
+        for i in range(num_solutions):
+            current_xi = xi_batch[i, :]
+            traj_current_xi = sim_rollout(QubeSwingupEnv, policy, xi=current_xi)
+            D_values[i] = D(traj_current_xi, traj_real)
+        
+        return D_values # Shape (M,) np.ndarray with dtype float32 matching Tout in tf.py_func
+
+    def fitness_fn_graph_compatible(xi_symbolic_tensor):
+        """
+        Args:
+          xi_symbolic_tensor: tf.Tensor (symbolic, from CMA-ES graph) of shape (M, N)
+        
+        Returns:
+          Fitness evaluations: tf.Tensor (symbolic) of shape (M,)
+        """
+        # tf.py_func embeds a Python function as an operation in the TensorFlow graph.
+        fitness_values_op = tf.py_func(
+            func=_numpy_fitness_calculator,
+            inp=[xi_symbolic_tensor],  # List of input Tensors to the Python function
+            Tout=tf.float32,           # TensorFlow dtype of the output(s)
+            name="numpy_fitness_calculator_py_func" # Optional name
+        )
+        
+        fitness_values_op.set_shape([None]) # Indicates a rank-1 tensor (vector) of unknown length
+
+        return fitness_values_op
+
+    return fitness_fn_graph_compatible
 
 def main():
     config = load_config("config.yaml")
