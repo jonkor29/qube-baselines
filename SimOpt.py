@@ -245,7 +245,8 @@ def main():
             break
     save_interval = 5e4
 
-    for i_simopt in range(N_simopt):    
+    for i_simopt in range(N_simopt):
+        t0_simopt = time.time()    
         logdir = f"{base_logdir}/iter-{i_simopt}"
         if i_simopt >= 1:
             load = f"{base_logdir}/iter-{i_simopt-1}/model.pkl"
@@ -276,7 +277,7 @@ def main():
         os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass" 
         traj_real, _ = real_rollout(QubeSwingupEnv, model, use_hardware=False)
         #line7: xi <- p_phi.sample()
-        xi_0 = np.array([0.024])#np.array([p_phi.rvs(size=1)])
+        #xi_0 = np.array([0.024])#np.array([p_phi.rvs(size=1)])
         #line8: tau_xi <- SimRollout(pi_theta_p_phi, xi)
         os.environ["QUANSER_HW"] = "qube_servo3_usb" 
         #traj_xi_0 = sim_rollout(QubeSwingupEnv, model, xi=xi_0)
@@ -298,6 +299,23 @@ def main():
         phi = (cma.get_mean(), cma.get_covariance_matrix())
         p_phi = multivariate_normal(mean=phi[0], cov=phi[1], seed=42, allow_singular=True)
         logger.log(f"Updated p_phi~N({p_phi.mean}, {p_phi.cov})")
+
+        #Meassure avg reward on the real rollout
+        os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass"
+        rewards = []
+        for i in range(10): 
+            _, reward = real_rollout(QubeSwingupEnv, model, use_hardware=False, deterministic_resets=False, deterministic_model=False)
+            rewards.append(reward)
+        os.environ["QUANSER_HW"] = "qube_servo3_usb" 
+        with open(f"{logdir}/reward.txt", "w") as f:
+            f.write(f"real_rollouts_rewards: {rewards}\n")
+            f.write(f"mean_reward: {np.mean(rewards)}\n")
+            f.write(f"std_reward: {np.std(rewards)}\n")
+        f.close()
+
+
+
+        #TODO: tweak: max_gen, N_simopt, sigma, n_timesteps, for loop real rollout range()
         """        
         with open(f"{base_logdir}/best_solutions.txt", "w") as f:
         f.write(f"---------SimOpt iteration: {i_simopt}-----------\n")
