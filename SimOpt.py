@@ -33,7 +33,7 @@ def normalized_angle_diff_rad(a1, a2):
     diff = a1 - a2
     return (diff + np.pi) % (2 * np.pi) - np.pi
 
-def real_rollout(env, model, use_hardware=True, load=None):
+def real_rollout(env, model, use_hardware=True, load=None, deterministic_model=True, deterministic_resets=True):
     """
     Run a rollout of the trained model in the environment.
     args:
@@ -44,7 +44,7 @@ def real_rollout(env, model, use_hardware=True, load=None):
         traj: The trajectory of the rollout.
     """
     def make_env():
-        env_out = env(use_simulator=not use_hardware, frequency=250, deterministic_resets=True)
+        env_out = env(use_simulator=not use_hardware, frequency=250, deterministic_resets=deterministic_resets)
         return env_out
     try:
         env = DummyVecEnv([make_env])
@@ -57,8 +57,9 @@ def real_rollout(env, model, use_hardware=True, load=None):
         obs = np.zeros((env.num_envs,) + env.observation_space.shape)
         obs[:] = env.reset()
         traj = [obs.copy()]
+        rewards = []
         while True:
-            actions, _states = model.predict(obs, deterministic=True)
+            actions, _states = model.predict(obs, deterministic=deterministic_model)
             obs[:], reward, done, _ = env.step(actions)
             traj.append(obs.copy())
 
@@ -68,11 +69,12 @@ def real_rollout(env, model, use_hardware=True, load=None):
                 print("done")
                 obs[:] = env.reset()
                 traj.append(obs.copy())
+                rewards.append(reward)
                 break
     finally:
         env.close()
     
-    return np.array(traj)
+    return np.array(traj), np.sum(rewards)
 
 def sim_rollout(env, model, xi):
     #trick: pass the env i distribution p_phi as usual but use p_phi~N(xi, 0)
