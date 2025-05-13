@@ -274,12 +274,12 @@ def main():
         #line6: tau_real <- RealRollout(pi_theta_p_phi)
         #force double mass when using simulator
         os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass" 
-        traj_real = real_rollout(QubeSwingupEnv, model, use_hardware=False)
+        traj_real, _ = real_rollout(QubeSwingupEnv, model, use_hardware=False)
         #line7: xi <- p_phi.sample()
         xi_0 = np.array([0.024])#np.array([p_phi.rvs(size=1)])
         #line8: tau_xi <- SimRollout(pi_theta_p_phi, xi)
         os.environ["QUANSER_HW"] = "qube_servo3_usb" 
-        traj_xi_0 = sim_rollout(QubeSwingupEnv, model, xi=xi_0)
+        #traj_xi_0 = sim_rollout(QubeSwingupEnv, model, xi=xi_0)
         fitness_fn = create_fitness_fn(traj_real, model)
         #fitness = fitness_fn(xi_0)
         cma_t0 = time.time()
@@ -291,9 +291,13 @@ def main():
             termination_no_effect=1e-7,
             callback_function=log_progress_callback,
         )
-        best_solution, best_fitness = cma.search(max_generations=4)
-        logger.log(f"CMA-ES search complete. | SimOpt Iteration: {i_simopt} | Unoptimized D-value: {D(traj_xi_0, traj_real)} | Best solution: {best_solution} | Best fitness: {best_fitness} | Time: {time.time() - cma_t0:.2f}s")
-
+        best_solution, best_fitness = cma.search(max_generations=20)
+        logger.log(f"CMA-ES search complete. | SimOpt Iteration: {i_simopt} | Best solution: {best_solution} | Best fitness: {best_fitness} | Time: {time.time() - cma_t0:.2f}s")
+        logger.log(f"Finished SimOpt Iteration: {i_simopt} | Time: {time.time() - t0_simopt:.2f}s")
+        #update p_phi
+        phi = (cma.get_mean(), cma.get_covariance_matrix())
+        p_phi = multivariate_normal(mean=phi[0], cov=phi[1], seed=42, allow_singular=True)
+        logger.log(f"Updated p_phi~N({p_phi.mean}, {p_phi.cov})")
         """        
         with open(f"{base_logdir}/best_solutions.txt", "w") as f:
         f.write(f"---------SimOpt iteration: {i_simopt}-----------\n")
