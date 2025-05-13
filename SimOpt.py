@@ -76,7 +76,7 @@ def real_rollout(env, model, use_hardware=True, load=None, deterministic_model=T
     
     return np.array(traj), np.sum(rewards)
 
-def sim_rollout(env, model, xi):
+def sim_rollout(env, model, xi, render=False):
     #trick: pass the env i distribution p_phi as usual but use p_phi~N(xi, 0)
     xi = multivariate_normal(mean=xi, cov=np.diag(np.zeros(xi.shape[0])), allow_singular=True) #TODO: this is a hack to pass a constant sample xi and should be replaced
 
@@ -94,7 +94,8 @@ def sim_rollout(env, model, xi):
             actions, _states = model.predict(obs, deterministic=True)
             obs[:], reward, done, _ = env.step(actions)
             traj.append(obs.copy())
-            env.render() #NOTE: for debuigging purpose
+            if render:
+                env.render() #NOTE: for debuigging purpose
 
             if done:
                 print("done")
