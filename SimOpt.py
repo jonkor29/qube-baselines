@@ -62,6 +62,7 @@ def real_rollout(env, model, use_hardware=True, load=None, deterministic_model=T
             actions, _states = model.predict(obs, deterministic=deterministic_model)
             obs[:], reward, done, _ = env.step(actions)
             traj.append(obs.copy())
+            rewards.append(reward)
 
             if not use_hardware:
                 env.render()
@@ -71,10 +72,11 @@ def real_rollout(env, model, use_hardware=True, load=None, deterministic_model=T
                 traj.append(obs.copy())
                 rewards.append(reward)
                 break
+        episode_reward = np.sum(rewards).item()
     finally:
         env.close()
     
-    return np.array(traj), np.sum(rewards)
+    return np.array(traj), episode_reward
 
 def sim_rollout(env, model, xi, render=False):
     #trick: pass the env i distribution p_phi as usual but use p_phi~N(xi, 0)
