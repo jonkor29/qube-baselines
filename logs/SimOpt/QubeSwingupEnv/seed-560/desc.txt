@@ -1,0 +1,3 @@
+Test ID: 12124545
+sim2sim with double mass test. Initial p_phi is not a constant.
+Both sims are deterministic during rollout. (But not during training).
