@@ -299,22 +299,56 @@ def main():
         default="Rewards vs. Batches",
         help="Title of the plot."
     )
+    parser.add_argument(
+        "-so",
+        "--simopt",
+        action="store_true",
+        default=False,
+        help="Use the simopt directory structure to plot the data. Plots iterations consequtively. Looks for reward.txt at the end of each iteration."
+    )
+    parser.add_argument(
+        "-soi",
+        "--simopt-iters",
+        type=int,
+    )
     args = parser.parse_args()
+    
+    if args.simopt:
+        if args.directories == ["."]:
+            print("Error: For --simopt mode, please provide specific seed directories via -d or --directories (e.g., path/to/seed-123 path/to/seed-456).")
+            return
+        
+        simopt_max_batches_per_iter = 0 
+        if args.num_batches and args.num_batches[0] > 0: # Check if list exists and first element is > 0
+            simopt_max_batches_per_iter = args.num_batches[0]
+            print(f"SimOpt mode: Limiting batches per iteration segment to {simopt_max_batches_per_iter}.")
+        elif args.num_batches and args.num_batches[0] <=0 : # Check if 0 or negative
+             print(f"SimOpt mode: Plotting all available batches per iteration segment (--num-batches set to {args.num_batches[0]}).")
+        else: # args.num_batches is None
+             print(f"SimOpt mode: Plotting all available batches per iteration segment (default --num-batches).")
 
-    if args.labels is None or len(args.labels) != len(args.directories):
-        # Create default labels if not provided or mismatch in length
-        labels = [generate_default_label(dirpath) for dirpath in args.directories]
+        
+        plot_simopt_experiment(
+            seed_directories=args.directories,
+            num_simopt_iterations_to_plot=args.simopt_iters,
+            title=args.title, 
+            num_batches_limit_per_iteration=simopt_max_batches_per_iter
+        )
     else:
-        labels = args.labels
-    if args.num_batches is None or len(args.num_batches) != len(args.directories):
-        # Create default num_batches if not provided or mismatch in length
-        print("Warning: num_batches length does not match number of directories, setting all to 0")
-        num_batches = [0 for _ in range(len(args.directories))]
-    else:
-        num_batches = args.num_batches
+        if args.labels is None or len(args.labels) != len(args.directories):
+            # Create default labels if not provided or mismatch in length
+            labels = [generate_default_label(dirpath) for dirpath in args.directories]
+        else:
+            labels = args.labels
+        if args.num_batches is None or len(args.num_batches) != len(args.directories):
+            # Create default num_batches if not provided or mismatch in length
+            print("Warning: num_batches length does not match number of directories, setting all to 0")
+            num_batches = [0 for _ in range(len(args.directories))]
+        else:
+            num_batches = args.num_batches
 
-    dir_label_batches_pairs = list(zip(args.directories, labels, num_batches))
-    plot_multiple_configs(dir_label_batches_pairs, append=args.append, title=args.title)
+        dir_label_batches_pairs = list(zip(args.directories, labels, num_batches))
+        plot_multiple_configs(dir_label_batches_pairs, append=args.append, title=args.title)
 
 if __name__ == "__main__":
     main()
