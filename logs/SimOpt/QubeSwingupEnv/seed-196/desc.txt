@@ -1,0 +1,3 @@
+Test ID: 12124545
+sim2sim with double mass test. Initial p_phi is constant. For some reason rewards vary wildly.
+Both sims are deterministic during rollout. (But not during training).
