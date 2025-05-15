@@ -352,3 +352,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+"""
+Example command:
+python jonas_plot.py --simopt --simopt-iters 4 -d /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-344 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-781 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-414 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-560 --title "SimOpt test - sim2sim with double mass, N=4"
+
+"""

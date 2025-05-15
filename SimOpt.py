@@ -253,9 +253,11 @@ def main():
 
     # Loop to find an unused seed
     env_name = "QubeSwingupEnv"
+    TEST_ID = 12124545
+    experiment_name = "sim2sim_double_mass" + "_" + str(TEST_ID) 
     while True:
-        seed = 666#np.random.randint(1, 1000)
-        base_logdir = f"logs/SimOpt/{env_name}/seed-{seed}"
+        seed = np.random.randint(1, 1000)
+        base_logdir = f"logs/SimOpt/{env_name}/{experiment_name}/seed-{seed}"
         if not os.path.exists(base_logdir):
             set_global_seeds(seed)
             break
