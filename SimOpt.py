@@ -246,8 +246,8 @@ def main():
     print("mu: ", mu)
     # ------------- SimOpt Initialization ---------------
 
-    N_simopt = 10 #number of SimOpt iterations
-    sigma_squared = np.diag(np.ones(mu.shape[0])*0.0001)
+    N_simopt = 4 #number of SimOpt iterations
+    sigma_squared = np.diag(np.ones(mu.shape[0])*0.000025)
     phi = (mu, sigma_squared)
     p_phi = multivariate_normal(mean=phi[0], cov=phi[1], seed=42, allow_singular=True)
 
@@ -275,7 +275,7 @@ def main():
         logger.log(f"Running RL(env) with p_phi~N({p_phi.mean}, {p_phi.cov})")
         model, env = train(
             env=QubeSwingupEnv,
-            num_timesteps=2048,
+            num_timesteps=2000000,
             hardware=False,
             logdir=logdir,
             save=True,
@@ -291,7 +291,8 @@ def main():
         #line6: tau_real <- RealRollout(pi_theta_p_phi)
         #force double mass when using simulator
         os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass" 
-        traj_real, _ = real_rollout(QubeSwingupEnv, model, use_hardware=False)
+        traj_real, episode_reward = real_rollout(QubeSwingupEnv, model, use_hardware=False)
+        logger.log(f"Real rollout complete. | SimOpt Iteration: {i_simopt} | Real rollout episode reward: {episode_reward} | Time: {time.time() - t0_simopt:.2f}s")
         #line7: xi <- p_phi.sample()
         #xi_0 = np.array([0.024])#np.array([p_phi.rvs(size=1)])
         #line8: tau_xi <- SimRollout(pi_theta_p_phi, xi)
@@ -305,10 +306,10 @@ def main():
             initial_step_size=1.0,
             fitness_function=fitness_fn,
             enforce_bounds=[[0, 0.100]],
-            termination_no_effect=1e-7,
+            termination_no_effect=1e-8,
             callback_function=log_progress_callback,
         )
-        best_solution, best_fitness = cma.search(max_generations=20)
+        best_solution, best_fitness = cma.search(max_generations=100)
         logger.log(f"CMA-ES search complete. | SimOpt Iteration: {i_simopt} | Best solution: {best_solution} | Best fitness: {best_fitness} | Time: {time.time() - cma_t0:.2f}s")
         logger.log(f"Finished SimOpt Iteration: {i_simopt} | Time: {time.time() - t0_simopt:.2f}s")
         #update p_phi
