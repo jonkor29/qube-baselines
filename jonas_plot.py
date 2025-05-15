@@ -175,6 +175,90 @@ def collect_simopt_iteration_data(seed_dirs, iter_num, num_batches_limit_per_ite
         "all_progress_rewards_for_iter": all_progress_rewards_for_iter,
         "all_end_of_iter_rollout_rewards": all_end_of_iter_rollout_rewards,
     }
+
+def plot_simopt_experiment(seed_directories, num_simopt_iterations_to_plot, title, num_batches_limit_per_iteration):
+    """
+    Plots SimOpt experiment results, appending iterations and showing mean/std across seeds.
+    """
+    plt.figure(figsize=(12, 7))
+    current_total_batches_offset = 0
+    
+    # colors = plt.cm.viridis(np.linspace(0, 0.9, num_simopt_iterations_to_plot))
+    prop_cycle = plt.rcParams['axes.prop_cycle']
+    colors = [prop_cycle.by_key()['color'][i % len(prop_cycle.by_key()['color'])] for i in range(num_simopt_iterations_to_plot)]
+
+    for i in range(num_simopt_iterations_to_plot):
+        print(f"Processing SimOpt iteration {i}...")
+        iteration_data = collect_simopt_iteration_data(seed_directories, i, num_batches_limit_per_iteration)
+        
+        progress_rewards_lists = iteration_data["all_progress_rewards_for_iter"]
+        all_end_of_iter_rollout_rewards = iteration_data["all_end_of_iter_rollout_rewards"]
+
+        plot_label_suffix = f"(Iter {i}, {len(progress_rewards_lists)} seeds)" if progress_rewards_lists else f"(Iter {i}, No progress data)"
+
+        if not progress_rewards_lists:
+            print(f"  No progress.csv data found for iteration {i} across any seeds. Skipping batch plot segment.")
+            # Attempt to plot end-of-iteration point if data exists, but x-pos might be an issue.
+            # For now, if no batch data, we can't reliably place the end-of-iter point.
+            # A placeholder for x could be added if needed, e.g., current_total_batches_offset += some_default_length
+            continue
+
+        batches_iter_segment, means_iter_segment, stds_iter_segment = compute_reward_statistics(progress_rewards_lists)
+
+        if not batches_iter_segment.size:
+            print(f"  No valid batch data after statistics for iteration {i}. Skipping batch plot segment.")
+            continue
+
+        # Shift x-axis for appending this iteration's segment
+        plot_batches_segment = np.array(batches_iter_segment) + current_total_batches_offset
+        
+        line_color = colors[i % len(colors)]
+        
+        # Plot mean line and std fill for batch rewards
+        plt.plot(plot_batches_segment, means_iter_segment, color=line_color, label=f"Iter {i} Batch Rewards")
+        plt.fill_between(
+            plot_batches_segment,
+            np.array(means_iter_segment) - np.array(stds_iter_segment),
+            np.array(means_iter_segment) + np.array(stds_iter_segment),
+            alpha=0.2,
+            color=line_color
+        )
+        
+        iter_segment_end_x = plot_batches_segment[-1]
+
+        # Plot end-of-iteration aggregate reward point (mean of means from reward.txt, with std of these means)
+        if all_end_of_iter_rollout_rewards:
+            # Mean of the reported mean_rewards from reward.txt across seeds
+            aggregate_mean_at_iter_end = np.mean(all_end_of_iter_rollout_rewards)
+            # Std of the reported mean_rewards from reward.txt across seeds
+            aggregate_std_at_iter_end = np.std(all_end_of_iter_rollout_rewards)
+            
+            plt.errorbar(
+                x=iter_segment_end_x, 
+                y=aggregate_mean_at_iter_end,
+                yerr=aggregate_std_at_iter_end,
+                fmt='o', 
+                color=line_color, 
+                capsize=5,
+                markersize=8,
+                markeredgecolor='black',
+                elinewidth=2,
+                label=f"Iter {i} Final Reward" # One label per iteration for its final reward point
+            )
+            print(f"  Iter {i}: Plotted end-of-iteration avg reward {aggregate_mean_at_iter_end:.2f} +/- {aggregate_std_at_iter_end:.2f} at batch {iter_segment_end_x}")
+        else:
+            print(f"  No reward.txt data found/parsed for iteration {i} to plot aggregate end-of-iteration point.")
+
+        current_total_batches_offset = iter_segment_end_x 
+
+    plt.title(title if title else "SimOpt Experiment: Mean Rewards vs. Batches")
+    plt.xlabel("Total Batch Index (Appended Iterations)")
+    plt.ylabel("Mean Episode Reward")
+    plt.legend(loc='best')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
 def main():
     parser = argparse.ArgumentParser(description="Plot rewards from monitor.csv files.")
     parser.add_argument(
