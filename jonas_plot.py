@@ -138,6 +138,43 @@ def parse_reward_txt(filepath):
                     print(f"Warning: Parsed data from 'real_rollouts_rewards' in {filepath} is not a list of numbers. Content: {list_str}")
                 break 
     return rewards_list
+
+def collect_simopt_iteration_data(seed_dirs, iter_num, num_batches_limit_per_iter):
+    """
+    Collects data for a specific SimOpt iteration from multiple seed directories.
+    Applies num_batches_limit_per_iter to each progress.csv data.
+    returns:
+        - all_progress_rewards_for_iter: List of lists of rewards from progress.csv from each seed [[progress_rewards_seed1_iter_num], [progress_rewards_seed2_iter_num], ...]
+        - all_end_of_iter_rollout_rewards: List of rewards from reward.txt from each seed:  [[rewardstxt_list_seed1_iternum], [rewardstxt_list_seed2_iter_num], ...]
+    """
+    all_progress_rewards_for_iter = []
+    all_end_of_iter_rollout_rewards = []
+
+    for seed_dir in seed_dirs:
+        iter_dir = os.path.join(seed_dir, f"iter-{iter_num}")
+        
+        progress_csv_path = os.path.join(iter_dir, "progress.csv")
+        if os.path.exists(progress_csv_path):
+            rewards = read_progress_csv(progress_csv_path)
+            if rewards:
+                if num_batches_limit_per_iter and num_batches_limit_per_iter > 0:
+                    rewards = rewards[:num_batches_limit_per_iter]
+                if rewards: # Check again after truncation
+                    all_progress_rewards_for_iter.append(rewards)
+        else:
+            print(f"Info: progress.csv not found in {iter_dir}")
+
+        reward_txt_path = os.path.join(iter_dir, "reward.txt")
+        rewards = parse_reward_txt(reward_txt_path) # std_r from reward.txt not directly used for this plot
+        if rewards:
+            all_end_of_iter_rollout_rewards += rewards #list concatenation
+        elif os.path.exists(iter_dir): # Only warn if iter_dir exists but reward.txt is bad/missing
+            print(f"Info: mean_reward not found or invalid in {reward_txt_path}")
+            
+    return {
+        "all_progress_rewards_for_iter": all_progress_rewards_for_iter,
+        "all_end_of_iter_rollout_rewards": all_end_of_iter_rollout_rewards,
+    }
 def main():
     parser = argparse.ArgumentParser(description="Plot rewards from monitor.csv files.")
     parser.add_argument(
