@@ -7,7 +7,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import argparse
-
+import re
+import ast
 
 def read_progress_csv(filepath):
     """
@@ -119,6 +120,24 @@ def generate_default_label(dirpath):
         pass
     return label
 
+def parse_reward_txt(filepath):
+    """
+    Parses a reward.txt file to extract the list of 'real_rollouts_rewards'.
+    Returns a list of floats. Returns an empty list if not found or error.
+    """
+    rewards_list = []
+    with open(filepath, 'r') as f:
+        for line in f:
+            if line.startswith("real_rollouts_rewards:"):
+                list_str = line.split(":", 1)[1].strip()
+                parsed_list = ast.literal_eval(list_str)
+                # Ensure it's a list and all elements are numbers
+                if isinstance(parsed_list, list) and all(isinstance(r, float) for r in parsed_list):
+                    rewards_list = parsed_list
+                else:
+                    print(f"Warning: Parsed data from 'real_rollouts_rewards' in {filepath} is not a list of numbers. Content: {list_str}")
+                break 
+    return rewards_list
 def main():
     parser = argparse.ArgumentParser(description="Plot rewards from monitor.csv files.")
     parser.add_argument(
