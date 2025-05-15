@@ -79,6 +79,10 @@ def real_rollout(env, model, use_hardware=True, load=None, deterministic_model=T
     return np.array(traj), episode_reward
 
 def sim_rollout(env, model, xi, render=False):
+    """
+    Run a rollout of the trained model in the environment.
+    Model and env resets are deterministic.
+    """
     #trick: pass the env i distribution p_phi as usual but use p_phi~N(xi, 0)
     xi = multivariate_normal(mean=xi, cov=np.diag(np.zeros(xi.shape[0])), allow_singular=True) #TODO: this is a hack to pass a constant sample xi and should be replaced
 
@@ -119,32 +123,42 @@ def D(traj_xi, traj_real):
         D: The discrepancy between the two trajectories.
     """
     #align the two trajectories
-    T = min([traj_xi.shape[0], traj_real.shape[0]])
-    traj_xi = traj_xi[:T, :, :] #shape: (T, 1, 4)
-    traj_real = traj_real[:T, :, :] #shape: (T, 1, 4)
+    #T = min([traj_xi.shape[0], traj_real.shape[0]])
+    #traj_xi = traj_xi[:T, :, :] #shape: (T, 1, 4)
+    #traj_real = traj_real[:T, :, :] #shape: (T, 1, 4)
+
+    #pad the shorter trajectory with ones, to avoid optimizing for early terminiation
+    T_max = max(traj_xi.shape[0], traj_real.shape[0])
+    pad_xi = T_max - traj_xi.shape[0]
+    pad_real = T_max - traj_real.shape[0]
+
+    traj_xi_padded = np.pad(traj_xi, ((0, pad_xi), (0, 0), (0, 0)), mode='constant', constant_values=1) # Or some other value
+    traj_real_padded = np.pad(traj_real, ((0, pad_real), (0, 0), (0, 0)), mode='constant', constant_values=1)
+    assert traj_xi_padded.shape == (T_max, 1, 4), f"traj_xi_padded shape mismatch: {traj_xi_padded.shape} != {(T_max, 1, 4)}"
+    assert traj_real_padded.shape == (T_max, 1, 4), f"traj_real_padded shape mismatch: {traj_real_padded.shape} != {(T_max, 1, 4)}"
 
     #state: theta, alpha, theta_dot, alpha_dot
-    diff = np.zeros((T, 1, 4))
-    diff[..., 0] = normalized_angle_diff_rad(traj_xi[..., 0], traj_real[..., 0]) #theta
-    diff[..., 1] = normalized_angle_diff_rad(traj_xi[..., 1], traj_real[..., 1]) #alpha
-    diff[..., 2:] = traj_xi[..., 2:] - traj_real[..., 2:] #theta_dot, alpha_dot 
+    diff = np.zeros((T_max, 1, 4))
+    diff[..., 0] = normalized_angle_diff_rad(traj_xi_padded[..., 0], traj_real_padded[..., 0]) #theta
+    diff[..., 1] = normalized_angle_diff_rad(traj_xi_padded[..., 1], traj_real_padded[..., 1]) #alpha
+    diff[..., 2:] = traj_xi_padded[..., 2:] - traj_real_padded[..., 2:] #theta_dot, alpha_dot 
     
     #Constants
     wl1 = 0.5
     wl2 = 1.0
-    W = np.array([1, 1, 0, 0]) #theta, alpha, theta_dot, alpha_dot, dim: (4,)
-    diff = traj_xi - traj_real #(T, 1, 4)
-    #W*diff -> (4,) * (T, 1, 4) = (T, 1, 4)
-    assert diff.shape == (T, 1, 4), f"Diff shape mismatch: {diff.shape} != {(T, 1, 4)}"
-    assert np.linalg.norm(W*diff, ord=1, axis=2).shape == (T, 1), f"Weighted diff shape mismatch: {np.linalg.norm(W*diff, ord=1, axis=2).shape} != {(T, 1)}"
-    assert np.linalg.norm(W*diff, ord=2, axis=2).shape == (T, 1), f"Weighted diff shape mismatch: {np.linalg.norm(W*diff, ord=2, axis=2).shape} != {(T, 1)}"
+    W = np.array([1, 1, 0.1, 0.1]) #theta, alpha, theta_dot, alpha_dot, dim: (4,)
+    diff = traj_xi_padded - traj_real_padded #(T_max, 1, 4)
+    #W*diff -> (4,) * (T_max, 1, 4) = (T_max, 1, 4)
+    assert diff.shape == (T_max, 1, 4), f"Diff shape mismatch: {diff.shape} != {(T_max, 1, 4)}"
+    assert np.linalg.norm(W*diff, ord=1, axis=2).shape == (T_max, 1), f"Weighted diff shape mismatch: {np.linalg.norm(W*diff, ord=1, axis=2).shape} != {(T_max, 1)}"
+    assert np.linalg.norm(W*diff, ord=2, axis=2).shape == (T_max, 1), f"Weighted diff shape mismatch: {np.linalg.norm(W*diff, ord=2, axis=2).shape} != {(T_max, 1)}"
     
-    l1_term = np.sum(np.linalg.norm(W*diff, ord=1, axis=2)) #dim: (T, 1) before sum
-    l2_term = np.sum(np.power(np.linalg.norm(W*diff, ord=2, axis=2), 2)) #dim: (T, 1) before sum
+    l1_term = np.sum(np.linalg.norm(W*diff, ord=1, axis=2)) #dim: (T_max, 1) before sum
+    l2_term = np.sum(np.power(np.linalg.norm(W*diff, ord=2, axis=2), 2)) #dim: (T_max, 1) before sum
     D = wl1*l1_term + wl2*l2_term
 
-    assert diff.shape == traj_xi.shape, f"Diff shape mismatch: {diff.shape} != {traj_xi.shape}"
-    assert (W*diff).shape == (traj_xi.shape[0], traj_xi.shape[1], traj_xi.shape[2]), f"Weighted diff shape mismatch: {(W*diff).shape} != {(traj_xi.shape[0], traj_xi.shape[1], traj_xi.shape[2])}"
+    assert diff.shape == traj_xi_padded.shape, f"Diff shape mismatch: {diff.shape} != {traj_xi_padded.shape}"
+    assert (W*diff).shape == (traj_xi_padded.shape[0], traj_xi_padded.shape[1], traj_xi_padded.shape[2]), f"Weighted diff shape mismatch: {(W*diff).shape} != {(traj_xi_padded.shape[0], traj_xi_padded.shape[1], traj_xi_padded.shape[2])}"
     assert np.isscalar(l1_term), f"l1_term is not a scalar: {l1_term}"
     assert np.isscalar(l2_term), f"l2_term is not a scalar: {l2_term}"
     assert np.isscalar(D), f"D is not a scalar: {D}"
