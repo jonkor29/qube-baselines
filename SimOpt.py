@@ -310,11 +310,13 @@ def main():
         fitness_fn = create_fitness_fn(traj_real, model, deterministic_sim_resets=True, deterministic_sim_model=True, sim_initial_state=traj_real[0, 0, :])
         #fitness = fitness_fn(xi_0)
         cma_t0 = time.time()
+        lower = max(0, phi[0].item() - 3*np.sqrt(phi[1]).item())
+        upper = max(0, phi[0].item() + 3*np.sqrt(phi[1]).item())
         cma = CMA(
             initial_solution=p_phi.mean.tolist(),
-            initial_step_size=1.0,
+            initial_step_size=phi[1].item(),
             fitness_function=fitness_fn,
-            enforce_bounds=[[0, 0.100]],
+            enforce_bounds=[[lower, upper]],
             termination_no_effect=1e-8,
             callback_function=log_progress_callback,
         )
