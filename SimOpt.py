@@ -78,7 +78,7 @@ def real_rollout(env, model, use_hardware=True, load=None, deterministic_model=T
     
     return np.array(traj), episode_reward
 
-def sim_rollout(env, model, xi, render=False):
+def sim_rollout(env, model, xi, render=False, deterministic_model=True, deterministic_resets=True, sim_initial_state=np.array([0, 0, 0, 0], dtype=np.float64)):
     """
     Run a rollout of the trained model in the environment.
     Model and env resets are deterministic.
@@ -87,7 +87,7 @@ def sim_rollout(env, model, xi, render=False):
     xi = multivariate_normal(mean=xi, cov=np.diag(np.zeros(xi.shape[0])), allow_singular=True) #TODO: this is a hack to pass a constant sample xi and should be replaced
 
     def make_env():
-        env_out = env(use_simulator=True, frequency=250, domain_randomization=True, p_phi=xi, deterministic_resets=True)
+        env_out = env(use_simulator=True, frequency=250, domain_randomization=True, p_phi=xi, deterministic_resets=deterministic_resets, sim_init_state=sim_initial_state)
         return env_out
 
     try:
@@ -97,7 +97,7 @@ def sim_rollout(env, model, xi, render=False):
         obs[:] = env.reset()
         traj = [obs.copy()]
         while True:
-            actions, _states = model.predict(obs, deterministic=True)
+            actions, _states = model.predict(obs, deterministic=deterministic_model)
             obs[:], reward, done, _ = env.step(actions)
             traj.append(obs.copy())
             if render:
@@ -165,7 +165,7 @@ def D(traj_xi, traj_real):
     
     return D
 
-def create_fitness_fn(traj_real, policy):
+def create_fitness_fn(traj_real, policy, deterministic_sim_resets=True, deterministic_sim_model=True, sim_initial_state=np.array([0,0,0,0], dtype=np.float64)):
     """
     Create a fitness function compatible with TF1 CMA-ES.
 
