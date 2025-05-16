@@ -191,7 +191,14 @@ def create_fitness_fn(traj_real, policy, deterministic_sim_resets=True, determin
 
         for i in range(num_solutions):
             current_xi = xi_batch[i, :]
-            traj_current_xi = sim_rollout(QubeSwingupEnv, policy, xi=current_xi)
+            traj_current_xi = sim_rollout(QubeSwingupEnv, 
+                                          policy, 
+                                          xi=current_xi, 
+                                          deterministic_model=deterministic_sim_model, 
+                                          deterministic_resets=deterministic_sim_resets, 
+                                          sim_initial_state=sim_initial_state
+                                        )
+            
             D_values[i] = D(traj_current_xi, traj_real)
         
         return D_values # Shape (M,) np.ndarray with dtype float32 matching Tout in tf.py_func
@@ -293,14 +300,14 @@ def main():
         #line6: tau_real <- RealRollout(pi_theta_p_phi)
         #force double mass when using simulator
         os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass" 
-        traj_real, episode_reward = real_rollout(QubeSwingupEnv, model, use_hardware=False)
+        traj_real, episode_reward = real_rollout(QubeSwingupEnv, model, use_hardware=False, deterministic_resets=False, deterministic_model=True)
         logger.log(f"Real rollout complete. | SimOpt Iteration: {i_simopt} | Real rollout episode reward: {episode_reward} | Time: {time.time() - t0_simopt:.2f}s")
         #line7: xi <- p_phi.sample()
         #xi_0 = np.array([0.024])#np.array([p_phi.rvs(size=1)])
         #line8: tau_xi <- SimRollout(pi_theta_p_phi, xi)
         os.environ["QUANSER_HW"] = "qube_servo3_usb" 
         #traj_xi_0 = sim_rollout(QubeSwingupEnv, model, xi=xi_0)
-        fitness_fn = create_fitness_fn(traj_real, model)
+        fitness_fn = create_fitness_fn(traj_real, model, deterministic_sim_resets=True, deterministic_sim_model=True, sim_initial_state=traj_real[0, 0, :])
         #fitness = fitness_fn(xi_0)
         cma_t0 = time.time()
         cma = CMA(
@@ -311,7 +318,7 @@ def main():
             termination_no_effect=1e-8,
             callback_function=log_progress_callback,
         )
-        best_solution, best_fitness = cma.search(max_generations=100)
+        best_solution, best_fitness = cma.search(max_generations=50)
         logger.log(f"CMA-ES search complete. | SimOpt Iteration: {i_simopt} | Best solution: {best_solution} | Best fitness: {best_fitness} | Time: {time.time() - cma_t0:.2f}s")
         logger.log(f"Finished SimOpt Iteration: {i_simopt} | Time: {time.time() - t0_simopt:.2f}s")
         #update p_phi
