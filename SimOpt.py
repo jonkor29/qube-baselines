@@ -102,7 +102,11 @@ def sim_rollout(env, model, xi, render=False, deterministic_model=True, determin
             traj.append(obs.copy())
             if render:
                 env.render() #NOTE: for debuigging purpose
-
+            if T_max is not None and len(traj) >= T_max:
+                print("T_max reached")
+                obs[:] = env.reset()
+                traj.append(obs.copy())
+                break
             if done:
                 print("done")
                 obs[:] = env.reset()
@@ -196,7 +200,8 @@ def create_fitness_fn(traj_real, policy, deterministic_sim_resets=True, determin
                                           xi=current_xi, 
                                           deterministic_model=deterministic_sim_model, 
                                           deterministic_resets=deterministic_sim_resets, 
-                                          sim_initial_state=sim_initial_state
+                                          sim_initial_state=sim_initial_state,
+                                          T_max=T_max
                                         )
             
             D_values[i] = D(traj_current_xi, traj_real)
