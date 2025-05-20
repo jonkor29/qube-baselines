@@ -2,6 +2,7 @@
 import numpy as np
 import time
 import os
+import argparse
 
 from scipy.stats import multivariate_normal
 from cma import CMA
@@ -78,7 +79,7 @@ def real_rollout(env, model, use_hardware=True, load=None, deterministic_model=T
     
     return np.array(traj), episode_reward
 
-def sim_rollout(env, model, xi, render=False, deterministic_model=True, deterministic_resets=True, sim_initial_state=np.array([0, 0, 0, 0], dtype=np.float64)):
+def sim_rollout(env, model, xi, render=False, deterministic_model=True, deterministic_resets=True, sim_initial_state=np.array([0, 0, 0, 0], dtype=np.float64), T_max=None):
     """
     Run a rollout of the trained model in the environment.
     Model and env resets are deterministic.
@@ -169,7 +170,7 @@ def D(traj_xi, traj_real):
     
     return D
 
-def create_fitness_fn(traj_real, policy, deterministic_sim_resets=True, deterministic_sim_model=True, sim_initial_state=np.array([0,0,0,0], dtype=np.float64)):
+def create_fitness_fn(traj_real, policy, deterministic_sim_resets=True, deterministic_sim_model=True, sim_initial_state=np.array([0,0,0,0], dtype=np.float64), T_max=None):
     """
     Create a fitness function compatible with TF1 CMA-ES.
 
@@ -253,29 +254,74 @@ def log_progress_callback(cma_instance, ignored_standard_logger):
             print(f"Generation: {generation:4d} | Info: [Error fetching]")
 
 def main():
+
+    #args
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--N-simopt",
+        type=int,
+        default=5,
+        help="Number of SimOpt iterations",
+    )
+    parser.add_argument(
+        "--T-max",
+        type=int,
+        default=2048,
+        help="Max number of steps per episode during CMA-ES search",
+    )
+    parser.add_argument(
+        "--max-generations",
+        type=int,
+        default=50,
+        help="Number of generations for CMA-ES search",
+    )
+    parser.add_argument(
+        "--save-interval",
+        type=int,
+        default=5e4,
+        help="Number of steps between saving the model",
+    )
+    parser.add_argument(
+        "--reward-samples",
+        type=int,
+        default=10,
+        help="Number of samples to use for computing the reward after each SimOpt iteration",
+    )
+    parser.add_argument(
+        "--T-start",
+        type=int,
+        default=0,
+        help="discard the first T_start samples of trajectories",
+    )
+    parser.add_argument(
+        "--use-hardware",
+        "-hw",
+        action="store_true",
+        help="Use hardware or not for the 'real' system",
+    )
+    args = parser.parse_args()
+    #os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass" 
+    os.environ["QUANSER_HW"] = "qube_servo3_usb"
     config = load_config("config.yaml")
     mu = np.array([config['mp']]) #mean of the distribution
-    print("mu: ", mu)
     # ------------- SimOpt Initialization ---------------
 
-    N_simopt = 4 #number of SimOpt iterations
     sigma_squared = np.diag(np.ones(mu.shape[0])*0.000025)
     phi = (mu, sigma_squared)
     p_phi = multivariate_normal(mean=phi[0], cov=phi[1], seed=42, allow_singular=True)
 
     # Loop to find an unused seed
     env_name = "QubeSwingupEnv"
-    TEST_ID = 12124545
-    experiment_name = "sim2sim_double_mass" + "_" + str(TEST_ID) 
+    TEST_ID = 6989
+    experiment_name = "sim2sim_double_mp" + "_" + str(TEST_ID) 
     while True:
         seed = np.random.randint(1, 1000)
         base_logdir = f"logs/SimOpt/{env_name}/{experiment_name}/seed-{seed}"
         if not os.path.exists(base_logdir):
             set_global_seeds(seed)
             break
-    save_interval = 5e4
 
-    for i_simopt in range(N_simopt):
+    for i_simopt in range(args.N_simopt):
         t0_simopt = time.time()    
         logdir = f"{base_logdir}/iter-{i_simopt}"
         if i_simopt >= 1:
@@ -286,14 +332,21 @@ def main():
 
         #line4: env <- Simulatioin(p_phi)
         #line5: pi_theta_p_phi <- RL(env)
-        logger.log(f"Running RL(env) with p_phi~N({p_phi.mean}, {p_phi.cov})")
+        logger.log(f"Training RL agent on env with p_phi~N({p_phi.mean}, {p_phi.cov})")
+        #if i_simopt == 0:
+        #    load = '/home/jonas/Masteroppgave/qube-baselines/logs/simulator/QubeSwingupEnv/3e6/seed-857/model.pkl'
+        #    logger.log(f"Loading model from {load}")
+
+        
+        #os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass"
+        os.environ["QUANSER_HW"] = "qube_servo3_usb"  
         model, env = train(
             env=QubeSwingupEnv,
-            num_timesteps=2000000,
+            num_timesteps=1000000 if i_simopt == 0 else 1000000,
             hardware=False,
             logdir=logdir,
             save=True,
-            save_interval=int(np.ceil(save_interval / 2048)),
+            save_interval=int(np.ceil(args.save_interval / 2048)),
             load=load,
             seed=seed,
             domain_randomization=True,
@@ -304,15 +357,19 @@ def main():
         logger.log("Training complete. Starting rollouts...")
         #line6: tau_real <- RealRollout(pi_theta_p_phi)
         #force double mass when using simulator
-        os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass" 
-        traj_real, episode_reward = real_rollout(QubeSwingupEnv, model, use_hardware=False, deterministic_resets=False, deterministic_model=True)
+        os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass"
+        #os.environ["QUANSER_HW"] = "qube_servo3_usb" 
+        traj_real, episode_reward = real_rollout(QubeSwingupEnv, model, use_hardware=args.use_hardware, deterministic_resets=False, deterministic_model=True)
         logger.log(f"Real rollout complete. | SimOpt Iteration: {i_simopt} | Real rollout episode reward: {episode_reward} | Time: {time.time() - t0_simopt:.2f}s")
         #line7: xi <- p_phi.sample()
         #xi_0 = np.array([0.024])#np.array([p_phi.rvs(size=1)])
         #line8: tau_xi <- SimRollout(pi_theta_p_phi, xi)
-        os.environ["QUANSER_HW"] = "qube_servo3_usb" 
+        os.environ["QUANSER_HW"] = "qube_servo3_usb"
+        #os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass" 
         #traj_xi_0 = sim_rollout(QubeSwingupEnv, model, xi=xi_0)
-        fitness_fn = create_fitness_fn(traj_real, model, deterministic_sim_resets=True, deterministic_sim_model=True, sim_initial_state=traj_real[0, 0, :])
+        #NOTE: cut trajectory to first second
+        traj_real = traj_real[:args.T_max, :, :]
+        fitness_fn = create_fitness_fn(traj_real, model, deterministic_sim_resets=True, deterministic_sim_model=True, sim_initial_state=traj_real[0, 0, :], T_max=args.T_max)
         #fitness = fitness_fn(xi_0)
         cma_t0 = time.time()
         lower = max(0, phi[0].item() - 3*np.sqrt(phi[1]).item())
@@ -325,7 +382,7 @@ def main():
             termination_no_effect=1e-8,
             callback_function=log_progress_callback,
         )
-        best_solution, best_fitness = cma.search(max_generations=50)
+        best_solution, best_fitness = cma.search(max_generations=args.max_generations)
         logger.log(f"CMA-ES search complete. | SimOpt Iteration: {i_simopt} | Best solution: {best_solution} | Best fitness: {best_fitness} | Time: {time.time() - cma_t0:.2f}s")
         logger.log(f"Finished SimOpt Iteration: {i_simopt} | Time: {time.time() - t0_simopt:.2f}s")
         #update p_phi
@@ -335,9 +392,13 @@ def main():
 
         #Meassure avg reward on the real rollout
         os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass"
+        #os.environ["QUANSER_HW"] = "qube_servo3_usb" 
+        deterministic_resets = False
+        deterministic_model = True
+        logger.log(f"Rolling out to REAL {'HARDWARE' if args.use_hardware else 'SIMULATOR'} with deterministics resets: {deterministic_resets} and deterministic model: {deterministic_model}")
         rewards = []
-        for i in range(10): 
-            _, reward = real_rollout(QubeSwingupEnv, model, use_hardware=False, deterministic_resets=False, deterministic_model=False)
+        for i in range(args.reward_samples): 
+            _, reward = real_rollout(QubeSwingupEnv, model, use_hardware=args.use_hardware, deterministic_resets=deterministic_resets, deterministic_model=deterministic_model)
             rewards.append(reward)
         os.environ["QUANSER_HW"] = "qube_servo3_usb" 
         with open(f"{logdir}/reward.txt", "w") as f:
@@ -345,7 +406,6 @@ def main():
             f.write(f"mean_reward: {np.mean(rewards)}\n")
             f.write(f"std_reward: {np.std(rewards)}\n")
         f.close()
-
 
 
         #TODO: tweak: max_gen, N_simopt, sigma, n_timesteps, for loop real rollout range()
