@@ -79,7 +79,7 @@ def real_rollout(env, model, use_hardware=True, load=None, deterministic_model=T
     
     return np.array(traj), episode_reward
 
-def sim_rollout(env, model, xi, render=False, deterministic_model=True, deterministic_resets=True, sim_initial_state=np.array([0, 0, 0, 0], dtype=np.float64), T_max=None):
+def sim_rollout(env, model, xi, render=False, deterministic_model=True, deterministic_resets=True, sim_initial_state=np.array([0, np.pi, 0, 0], dtype=np.float64), T_max=None):
     """
     Run a rollout of the trained model in the environment.
     Model and env resets are deterministic.
@@ -170,7 +170,7 @@ def D(traj_xi, traj_real):
     
     return D
 
-def create_fitness_fn(traj_real, policy, deterministic_sim_resets=True, deterministic_sim_model=True, sim_initial_state=np.array([0,0,0,0], dtype=np.float64), T_max=None):
+def create_fitness_fn(traj_real, policy, deterministic_sim_resets=True, deterministic_sim_model=True, sim_initial_state=np.array([0,np.pi,0,0], dtype=np.float64), T_max=None):
     """
     Create a fitness function compatible with TF1 CMA-ES.
 
