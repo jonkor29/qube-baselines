@@ -312,11 +312,12 @@ def main():
 
     # Loop to find an unused seed
     env_name = "QubeSwingupEnv"
-    TEST_ID = 6989
-    experiment_name = "sim2sim_double_mp" + "_" + str(TEST_ID) 
+    TEST_ID = 12124545
+    experiment_name = "recreate_sim2sim_double_mass" + "_" + str(TEST_ID)
+    version_name = "v4"
     while True:
         seed = np.random.randint(1, 1000)
-        base_logdir = f"logs/SimOpt/{env_name}/{experiment_name}/seed-{seed}"
+        base_logdir = f"logs/SimOpt/{env_name}/{experiment_name}/{version_name}/seed-{seed}"
         if not os.path.exists(base_logdir):
             set_global_seeds(seed)
             break
@@ -369,7 +370,8 @@ def main():
         #traj_xi_0 = sim_rollout(QubeSwingupEnv, model, xi=xi_0)
         #NOTE: cut trajectory to first second
         traj_real = traj_real[:args.T_max, :, :]
-        fitness_fn = create_fitness_fn(traj_real, model, deterministic_sim_resets=True, deterministic_sim_model=True, sim_initial_state=traj_real[0, 0, :], T_max=args.T_max)
+        sampled_init_state = traj_real[0, 0, :].copy()
+        fitness_fn = create_fitness_fn(traj_real, model, deterministic_sim_resets=True, deterministic_sim_model=True, T_max=args.T_max, sim_initial_state=sampled_init_state)
         #fitness = fitness_fn(xi_0)
         cma_t0 = time.time()
         lower = max(0, phi[0].item() - 3*np.sqrt(phi[1]).item())
@@ -386,7 +388,7 @@ def main():
         logger.log(f"CMA-ES search complete. | SimOpt Iteration: {i_simopt} | Best solution: {best_solution} | Best fitness: {best_fitness} | Time: {time.time() - cma_t0:.2f}s")
         logger.log(f"Finished SimOpt Iteration: {i_simopt} | Time: {time.time() - t0_simopt:.2f}s")
         #update p_phi
-        phi = (cma.get_mean(), cma.get_covariance_matrix())
+        phi = (cma.get_mean(), phi[1])
         p_phi = multivariate_normal(mean=phi[0], cov=phi[1], seed=42, allow_singular=True)
         logger.log(f"Updated p_phi~N({p_phi.mean}, {p_phi.cov})")
 
@@ -394,7 +396,7 @@ def main():
         os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass"
         #os.environ["QUANSER_HW"] = "qube_servo3_usb" 
         deterministic_resets = False
-        deterministic_model = True
+        deterministic_model = False
         logger.log(f"Rolling out to REAL {'HARDWARE' if args.use_hardware else 'SIMULATOR'} with deterministics resets: {deterministic_resets} and deterministic model: {deterministic_model}")
         rewards = []
         for i in range(args.reward_samples): 
