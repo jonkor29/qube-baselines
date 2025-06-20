@@ -55,11 +55,7 @@ def compute_reward_statistics(reward_arrays):
     batches = np.arange(1, len(means) + 1)
     return batches, means, stds
 
-<<<<<<< HEAD
-def plot_multiple_configs(dir_label_batches_pairs, append=False, title="Rewards vs. Batches"):
-=======
 def plot_multiple_configs(dir_label_batches_pairs, append=False, title=None):
->>>>>>> SimOpt
     """
     For each (directory, label) pair:
       1) Collect all progress.csv files
@@ -303,8 +299,6 @@ def main():
         default="Rewards vs. Batches",
         help="Title of the plot."
     )
-<<<<<<< HEAD
-=======
     parser.add_argument(
         "-so",
         "--simopt",
@@ -317,7 +311,6 @@ def main():
         "--simopt-iters",
         type=int,
     )
->>>>>>> SimOpt
     args = parser.parse_args()
     
     if args.simopt:
@@ -354,13 +347,8 @@ def main():
         else:
             num_batches = args.num_batches
 
-<<<<<<< HEAD
-    dir_label_batches_pairs = list(zip(args.directories, labels, num_batches))
-    plot_multiple_configs(dir_label_batches_pairs, append=args.append, title=args.title)
-=======
         dir_label_batches_pairs = list(zip(args.directories, labels, num_batches))
         plot_multiple_configs(dir_label_batches_pairs, append=args.append, title=args.title)
->>>>>>> SimOpt
 
 if __name__ == "__main__":
     main()
