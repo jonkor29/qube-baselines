@@ -22,6 +22,7 @@ tf.compat.v1.disable_eager_execution()
 from load_config import load_config
 from train import train
 
+
 def normalized_angle_diff_rad(a1, a2):
     """
     Calculate the shortest angle difference between two angles that are in the interval [-pi, pi].
@@ -230,6 +231,9 @@ def create_fitness_fn(traj_real, policy, deterministic_sim_resets=True, determin
         return fitness_values_op
 
     return fitness_fn_graph_compatible
+
+def format_array(arr):
+    return np.array2string(arr, precision=5, suppress_small=True, separator=", ", max_line_width=np.inf)
 
 
 def log_progress_callback(cma_instance, ignored_standard_logger):
