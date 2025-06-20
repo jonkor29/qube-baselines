@@ -1,0 +1,1 @@
+trained consecutively with domain randomization on mass mp, with transfer learning frmo the previous iteration as a test of simopt and transferlearning

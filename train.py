@@ -58,10 +58,10 @@ def init_save_callback(logdir, batch_size, save_interval):
 
 
 def train(
-    env, num_timesteps, hardware, logdir, save, save_interval, load, seed, domain_randomization, tensorboard
+    env, num_timesteps, hardware, logdir, save, save_interval, load, seed, domain_randomization, tensorboard, p_phi=None
 ):
     def make_env():
-        env_out = env(use_simulator=not hardware, domain_randomization=domain_randomization, frequency=250)
+        env_out = env(use_simulator=not hardware, domain_randomization=domain_randomization, frequency=250, p_phi=p_phi)
         env_out = bench.Monitor(env_out, logger.get_dir(), allow_early_resets=True)
         return env_out
 
@@ -87,7 +87,9 @@ def train(
     metadata = {"timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "domain_randomization": domain_randomization,
                 "transfer_learned_from:": load,
+                "p_phi": (p_phi.mean.tolist(), p_phi.cov.tolist()) if p_phi is not None else None,
                 "config": load_config()}
+    os.makedirs(logdir, exist_ok=True)
     with open(logdir + "/metadata.json", "w") as f:
         json.dump(metadata, f)   
         

@@ -1,0 +1,6 @@
+SimOpt loop was run but only with the RL training and domain randomization (p_phi was passed).
+Corresponds to line 1,3,4,5 in SimOpt algo from the SimOpt paper.
+
+N=9 runs. One for p_phi~N(0.024, 2.5*1e-5) and p_phi~N(0.024, 1*1e-6), where 0.024 is the datasheet value for mp.
+
+The weights were not loaded from the previous runs. The runs were thus independant and learning started from scratch for each of the N=9 runs for each p_phi.
