@@ -235,6 +235,17 @@ def create_fitness_fn(traj_real, policy, deterministic_sim_resets=True, determin
 def format_array(arr):
     return np.array2string(arr, precision=5, suppress_small=True, separator=", ", max_line_width=np.inf)
 
+def relative_error(input_vec, target_vec):
+    input_vector = np.asarray(input_vec, dtype=float)
+    target_vector = np.asarray(target_vec, dtype=float)
+    
+    assert input_vector.shape == target_vector.shape, "Input and target vectors must have the same shape."
+
+    abs_diff = np.abs(input_vector - target_vector)
+    abs_target = np.abs(target_vector) + 1e-8  # Avoid division by zero
+    relative_errors = abs_diff / abs_target
+    
+    return np.mean(relative_errors)
 
 def log_progress_callback(cma_instance, ignored_standard_logger):
     generation = cma_instance.generation
