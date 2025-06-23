@@ -259,7 +259,7 @@ def plot_simopt_experiment(seed_directories, num_simopt_iterations_to_plot, titl
     plt.tight_layout()
     plt.show()
 
-def plot_evaluation_results(dir_label_pairs, title):
+def plot_evaluation_results(dir_label_reward_pairs, title):
     """
     Plots training curve and final evaluation reward for a set of models.
     """
@@ -267,9 +267,9 @@ def plot_evaluation_results(dir_label_pairs, title):
     current_total_batches_offset = 0
 
     prop_cycle = plt.rcParams['axes.prop_cycle']
-    colors = [prop_cycle.by_key()['color'][i % len(prop_cycle.by_key()['color'])] for i in range(len(dir_label_pairs))]
+    colors = [prop_cycle.by_key()['color'][i % len(prop_cycle.by_key()['color'])] for i in range(len(dir_label_reward_pairs))]
 
-    for i, (directory, label) in enumerate(dir_label_pairs):
+    for i, (directory, label, reward_type) in enumerate(dir_label_reward_pairs):
         line_color = colors[i % len(colors)]
         # 1. Plot the training curve from progress.csv
         progress_paths = collect_all_progress_files(directory)
@@ -291,7 +291,12 @@ def plot_evaluation_results(dir_label_pairs, title):
             print(f"No progress.csv found for {label} in {directory}")
 
         # 2. Plot the final evaluation from reward.txt
-        reward_paths = glob.glob(os.path.join(directory, "**", "reward.txt"), recursive=True)
+        if reward_type:
+            reward_filename = f"reward_{reward_type}.txt"
+        else:
+            reward_filename = "reward.txt"
+        reward_paths = glob.glob(os.path.join(directory, "**", reward_filename), recursive=True)
+        
         if reward_paths:
             all_eval_rewards = []
             for path in reward_paths:
@@ -312,7 +317,7 @@ def plot_evaluation_results(dir_label_pairs, title):
                     markersize=8,
                     markeredgecolor='black',
                     elinewidth=2,
-                    label=f"{label} Final Reward",
+                    label=f"{label} Final Reward ({reward_type if reward_type else 'default'})",
                     color=line_color
                 )
 
@@ -381,6 +386,13 @@ def main():
         action="store_true",
         help="Plot training curve and final evaluation point for specified models."
     )
+    parser.add_argument(
+    "--reward-types",
+    type=str,
+    nargs='+',
+    default=None,
+    help="The type of reward file to use for plotting (e.g., 'sim' for 'reward_sim.txt')."
+    )
     args = parser.parse_args()
     if args.eval:
         if args.directories == ["."]:
@@ -389,8 +401,22 @@ def main():
         if not args.labels or len(args.labels) != len(args.directories):
             print("Error: For --eval mode, you must provide a label for each directory via -l.")
             return
-        dir_label_pairs = list(zip(args.directories, args.labels))
-        plot_evaluation_results(dir_label_pairs, args.title)
+        
+        #Logic for handling multiple reward types (what system the reward is from eg. sim, real, sim_double_mass, etc.)
+        reward_types = []
+        if args.reward_types:
+            if len(args.reward_types) == len(args.directories):
+                reward_types = args.reward_types
+            else:
+                print(f"Warning: Number of reward types ({len(args.reward_types)}) does not match number of directories ({len(args.directories)}). Using provided types and defaulting rest to 'reward.txt'.")
+                reward_types = args.reward_types + [None] * (len(args.directories) - len(args.reward_types))
+        else:
+            # Default to None for all if --reward-types is not used
+            reward_types = [None] * len(args.directories)
+
+        dir_label_reward_pairs = list(zip(args.directories, args.labels, reward_types))
+        plot_evaluation_results(dir_label_reward_pairs, args.title)
+        
     elif args.simopt:
         if args.directories == ["."]:
             print("Error: For --simopt mode, please provide specific seed directories via -d or --directories (e.g., path/to/seed-123 path/to/seed-456).")
@@ -436,7 +462,13 @@ Example commands:
 python jonas_plot.py --simopt --simopt-iters 4 -d /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-344 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-781 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-414 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-560 --title "SimOpt test - sim2sim with double mass, N=4"
 
 python jonas_plot.py --eval \
--d logs/simulator/QubeSwingupEnv/3e6/seed-857 logs/simulator/QubeSwingupEnv/1e6/seed-314 \
+-d logs/simulator/QubeSwingupEnv/3e6/ logs/simulator/QubeSwingupEnv/1e6/ \
 -l "Sim-Only" "Finetuned" \
 -t "Comparison of Sim-Only vs. Finetuning"
+
+python jonas_plot.py --eval \
+-d logs/simulator/QubeSwingupEnv/3e6/ logs/simulator/QubeSwingupEnv/1e6/ \
+-l "Sim-Only" "Finetuned" \
+-t "Comparison of Sim-Only vs. Finetuning on Sim With Double mp" \
+--reward-types double_mp double_mp
 """
