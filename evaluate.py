@@ -40,6 +40,7 @@ def evaluate_model(
     deterministic=True,
     sim_params=None,
     deterministic_resets=True,
+    reward_suffix=None,
 ):
     """
     Evaluate a trained model.
@@ -115,7 +116,12 @@ def evaluate_model(
     print(f"Mean reward over {num_episodes} episodes: {mean_reward:.2f} +/- {std_reward:.2f}")
 
     # Save rewards to a file in the model's directory
-    reward_file_path = os.path.join(os.path.dirname(model_path), "reward.txt")
+    if reward_suffix:
+        filename = f"reward_{reward_suffix}.txt"
+    else:
+        filename = "reward.txt"
+    reward_file_path = os.path.join(os.path.dirname(model_path), filename)
+
     with open(reward_file_path, "w") as f:
         f.write(f"real_rollouts_rewards: {episode_rewards}\n")
         f.write(f"mean_reward: {mean_reward}\n")
@@ -154,6 +160,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Simulator only: Use deterministic environment resets instead of stochastic ones.",
     )
+    parser.add_argument(
+        "--reward-suffix",
+        type=str,
+        default=None,
+        help="Suffix for the reward file, e.g., 'sim' creates 'reward_sim.txt'",
+    )
     args = parser.parse_args()
 
     sim_params = args.sim_params
@@ -179,4 +191,5 @@ if __name__ == "__main__":
         deterministic=not args.non_deterministic,
         sim_params=sim_params,
         deterministic_resets= args.deterministic_resets,
+        reward_suffix=args.reward_suffix,
     )
