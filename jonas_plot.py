@@ -259,6 +259,71 @@ def plot_simopt_experiment(seed_directories, num_simopt_iterations_to_plot, titl
     plt.tight_layout()
     plt.show()
 
+def plot_evaluation_results(dir_label_pairs, title):
+    """
+    Plots training curve and final evaluation reward for a set of models.
+    """
+    plt.figure(figsize=(12, 7))
+    current_total_batches_offset = 0
+
+    prop_cycle = plt.rcParams['axes.prop_cycle']
+    colors = [prop_cycle.by_key()['color'][i % len(prop_cycle.by_key()['color'])] for i in range(len(dir_label_pairs))]
+
+    for i, (directory, label) in enumerate(dir_label_pairs):
+        line_color = colors[i % len(colors)]
+        # 1. Plot the training curve from progress.csv
+        progress_paths = collect_all_progress_files(directory)
+        if progress_paths:
+            reward_runs = [read_progress_csv(fp) for fp in progress_paths]
+            batches, means, stds = compute_reward_statistics(reward_runs)
+
+            plot_batches = batches + current_total_batches_offset
+            plt.plot(plot_batches, means, label=f"{label} Training", color=line_color)
+            plt.fill_between(
+                plot_batches,
+                np.array(means) - np.array(stds),
+                np.array(means) + np.array(stds),
+                alpha=0.2,
+                color=line_color
+            )
+            current_total_batches_offset = plot_batches[-1] if batches.size > 0 else current_total_batches_offset
+        else:
+            print(f"No progress.csv found for {label} in {directory}")
+
+        # 2. Plot the final evaluation from reward.txt
+        reward_paths = glob.glob(os.path.join(directory, "**", "reward.txt"), recursive=True)
+        if reward_paths:
+            all_eval_rewards = []
+            for path in reward_paths:
+                rewards_from_file = parse_reward_txt(path)
+                if rewards_from_file:
+                    all_eval_rewards.extend(rewards_from_file)
+            
+            if all_eval_rewards:
+                mean_eval_reward = np.mean(all_eval_rewards)
+                std_eval_reward = np.std(all_eval_rewards)
+
+                plt.errorbar(
+                    x=current_total_batches_offset,
+                    y=mean_eval_reward,
+                    yerr=std_eval_reward,
+                    fmt='o',
+                    capsize=5,
+                    markersize=8,
+                    markeredgecolor='black',
+                    elinewidth=2,
+                    label=f"{label} Final Reward",
+                    color=line_color
+                )
+
+    plt.title(title if title else "Model Comparison")
+    plt.xlabel("Total Batch Index")
+    plt.ylabel("Mean Episode Reward")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
 def main():
     parser = argparse.ArgumentParser(description="Plot rewards from monitor.csv files.")
     parser.add_argument(
@@ -311,9 +376,22 @@ def main():
         "--simopt-iters",
         type=int,
     )
+    parser.add_argument(
+        "--eval",
+        action="store_true",
+        help="Plot training curve and final evaluation point for specified models."
+    )
     args = parser.parse_args()
-    
-    if args.simopt:
+    if args.eval:
+        if args.directories == ["."]:
+            print("Error: For --eval mode, please provide specific directories via -d.")
+            return
+        if not args.labels or len(args.labels) != len(args.directories):
+            print("Error: For --eval mode, you must provide a label for each directory via -l.")
+            return
+        dir_label_pairs = list(zip(args.directories, args.labels))
+        plot_evaluation_results(dir_label_pairs, args.title)
+    elif args.simopt:
         if args.directories == ["."]:
             print("Error: For --simopt mode, please provide specific seed directories via -d or --directories (e.g., path/to/seed-123 path/to/seed-456).")
             return
@@ -354,7 +432,11 @@ if __name__ == "__main__":
     main()
 
 """
-Example command:
+Example commands:
 python jonas_plot.py --simopt --simopt-iters 4 -d /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-344 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-781 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-414 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-560 --title "SimOpt test - sim2sim with double mass, N=4"
 
+python jonas_plot.py --eval \
+-d logs/simulator/QubeSwingupEnv/3e6/seed-857 logs/simulator/QubeSwingupEnv/1e6/seed-314 \
+-l "Sim-Only" "Finetuned" \
+-t "Comparison of Sim-Only vs. Finetuning"
 """
