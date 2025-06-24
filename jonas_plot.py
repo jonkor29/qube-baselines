@@ -269,13 +269,18 @@ def plot_evaluation_results(dir_label_reward_pairs, title):
     prop_cycle = plt.rcParams['axes.prop_cycle']
     colors = [prop_cycle.by_key()['color'][i % len(prop_cycle.by_key()['color'])] for i in range(len(dir_label_reward_pairs))]
 
-    for i, (directory, label, reward_type) in enumerate(dir_label_reward_pairs):
+    for i, (directory, label, reward_type, num_batches) in enumerate(dir_label_reward_pairs):
         line_color = colors[i % len(colors)]
         # 1. Plot the training curve from progress.csv
         progress_paths = collect_all_progress_files(directory)
         if progress_paths:
             reward_runs = [read_progress_csv(fp) for fp in progress_paths]
             batches, means, stds = compute_reward_statistics(reward_runs)
+
+            if num_batches: # A value of 0 or None will be Falsy
+                batches = batches[:num_batches]
+                means = means[:num_batches]
+                stds = stds[:num_batches]
 
             plot_batches = batches + current_total_batches_offset
             plt.plot(plot_batches, means, label=f"{label} Training", color=line_color)
@@ -402,6 +407,16 @@ def main():
             print("Error: For --eval mode, you must provide a label for each directory via -l.")
             return
         
+        num_batches_list = []
+        if args.num_batches:
+            if len(args.num_batches) == len(args.directories):
+                num_batches_list = args.num_batches
+            else:
+                 print(f"Warning: Number of batch limits ({len(args.num_batches)}) does not match number of directories ({len(args.directories)}). Using provided values and defaulting rest to 0 (all batches).")
+                 num_batches_list = args.num_batches + [0] * (len(args.directories) - len(args.num_batches))
+        else:
+            num_batches_list = [0] * len(args.directories) # Default to 0 (all batches)
+
         #Logic for handling multiple reward types (what system the reward is from eg. sim, real, sim_double_mass, etc.)
         reward_types = []
         if args.reward_types:
@@ -414,8 +429,8 @@ def main():
             # Default to None for all if --reward-types is not used
             reward_types = [None] * len(args.directories)
 
-        dir_label_reward_pairs = list(zip(args.directories, args.labels, reward_types))
-        plot_evaluation_results(dir_label_reward_pairs, args.title)
+        dir_label_reward_batch_pairs = list(zip(args.directories, args.labels, reward_types, num_batches_list))
+        plot_evaluation_results(dir_label_reward_batch_pairs, args.title)
         
     elif args.simopt:
         if args.directories == ["."]:
@@ -464,7 +479,7 @@ python jonas_plot.py --simopt --simopt-iters 4 -d /home/jonas/Masteroppgave/qube
 python jonas_plot.py --eval \
 -d logs/simulator/QubeSwingupEnv/3e6/ logs/simulator/QubeSwingupEnv/1e6/ \
 -l "Sim-Only" "Finetuned" \
--t "Comparison of Sim-Only vs. Finetuning"
+-t "Comparison of Sim-Only vs. Finetuning on Real Pendulum"
 
 python jonas_plot.py --eval \
 -d logs/simulator/QubeSwingupEnv/3e6/ logs/simulator/QubeSwingupEnv/1e6/ \
