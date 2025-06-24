@@ -334,6 +334,54 @@ def plot_evaluation_results(dir_label_reward_pairs, title):
     plt.tight_layout()
     plt.show()
 
+def plot_reward_histogram(directories, title, reward_suffix, bins=40, y_lim=None):
+    """
+    Finds all specified reward files in the given directories and plots a histogram
+    of the collected rewards.
+    """
+    all_rewards = []
+    
+    if reward_suffix:
+        reward_filename = f"reward_{reward_suffix}.txt"
+    else:
+        reward_filename = "reward.txt"
+        
+    print(f"Searching for '{reward_filename}' files...")
+
+    for directory in directories:
+        reward_paths = glob.glob(os.path.join(directory, "**", reward_filename), recursive=True)
+        if not reward_paths:
+            print(f"Warning: No '{reward_filename}' files found in {directory}")
+            continue
+            
+        for path in reward_paths:
+            all_rewards.extend(parse_reward_txt(path))
+
+    if not all_rewards:
+        print("No reward data found to plot. Exiting.")
+        return
+
+    plt.figure(figsize=(10, 6))
+    plt.hist(all_rewards, bins=bins, edgecolor='black', alpha=0.7)
+    
+    mean_reward = np.mean(all_rewards)
+    std_reward = np.std(all_rewards)
+    
+    plt.axvline(mean_reward, color='r', linestyle='dashed', linewidth=2, label=f'Mean: {mean_reward:.2f}')
+    
+    plot_title = title if title else "Distribution of Rewards"
+    plt.title(plot_title)
+    plt.xlabel("Episode Reward")
+    plt.ylabel("Frequency")
+    if y_lim:
+        plt.ylim(y_lim)
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    print(f"Generated histogram from {len(all_rewards)} episodes.")
+    print(f"Mean: {mean_reward:.2f}, Std Dev: {std_reward:.2f}")
+    plt.show()
+
 def main():
     parser = argparse.ArgumentParser(description="Plot rewards from monitor.csv files.")
     parser.add_argument(
@@ -392,14 +440,46 @@ def main():
         help="Plot training curve and final evaluation point for specified models."
     )
     parser.add_argument(
-    "--reward-types",
-    type=str,
-    nargs='+',
-    default=None,
-    help="The type of reward file to use for plotting (e.g., 'sim' for 'reward_sim.txt')."
+        "--reward-types",
+        type=str,
+        nargs='+',
+        default=None,
+        help="The type of reward file to use for plotting (e.g., 'sim' for 'reward_sim.txt')."
+    )
+    parser.add_argument(
+        "--plot-step-rewards",
+        action="store_true",
+        default=False,
+        help="Also plot per_step_rewards from the reward.txt file if available."
+    )
+    parser.add_argument(
+        "--histogram",
+        action="store_true",
+        help="Plot a histogram of rewards from reward.txt files."
+    )
+    parser.add_argument(
+        "--bins",
+        type=int,
+        default=0,
+        help="Number of bins for the histogram plot."
+    )
+    parser.add_argument(
+        "--y-lim",
+        type=int,
+        nargs=2,
+        default=None,
+        help="Set the y-axis limits for the plot. Provide two integers: min and max."
     )
     args = parser.parse_args()
-    if args.eval:
+    
+    if args.histogram:
+        if args.directories == ["."]:
+            print("Error: For --histogram mode, please provide specific directories via -d.")
+            return
+        reward_suffix = args.reward_types[0] if args.reward_types else None
+        plot_reward_histogram(args.directories, args.title, reward_suffix, args.bins, args.y_lim)
+    
+    elif args.eval:
         if args.directories == ["."]:
             print("Error: For --eval mode, please provide specific directories via -d.")
             return
@@ -486,4 +566,10 @@ python jonas_plot.py --eval \
 -l "Sim-Only" "Finetuned" \
 -t "Comparison of Sim-Only vs. Finetuning on Sim With Double mp" \
 --reward-types double_mp double_mp
+
+python jonas_plot.py --histogram \
+-d logs/simulator/QubeSwingupEnv/1e6/ \
+--reward-types double_mp \
+--y-lim 0 100 --bins 40 \
+-t "Histogram of Rewards from Sim-Only QubeSwingupEnv Deployed on Double mp Sim"
 """
