@@ -96,21 +96,29 @@ def evaluate_model(
     env = DummyVecEnv([make_env])
     model = PPO2.load(model_path, env=env)
 
-    episode_rewards = []
-    for _ in range(num_episodes):
+    episodes_rewards = []
+    episodes_per_step_rewards = []
+    
+    for i in range(num_episodes):
         obs = env.reset()
         done = False
-        episode_reward = 0.0
+        ep_reward = 0.0
+        ep_len = 0
         while not done:
             action, _ = model.predict(obs, deterministic=deterministic)
             obs, reward, done, _ = env.step(action)
-            episode_reward += reward[0] # Reward is a vector with one element
+            ep_reward += reward[0] # Reward is a vector with one element
+            ep_len += 1
             if render and not use_hardware:
                 env.render()
-        episode_rewards.append(episode_reward)
 
-    mean_reward = np.mean(episode_rewards)
-    std_reward = np.std(episode_rewards)
+        ep_reward_per_step = ep_reward / ep_len if ep_len > 0 else 0
+        episodes_rewards.append(ep_reward)
+        episodes_per_step_rewards.append(ep_reward_per_step)
+        print("Episode number {}: Total reward: {:.2f}, reward per step: {:.2f}".format(i, ep_reward, ep_reward_per_step))
+
+    mean_reward = np.mean(episodes_rewards)
+    std_reward = np.std(episodes_rewards)
 
     print(f"\nEvaluation results for {model_path}:")
     print(f"Mean reward over {num_episodes} episodes: {mean_reward:.2f} +/- {std_reward:.2f}")
@@ -123,9 +131,12 @@ def evaluate_model(
     reward_file_path = os.path.join(os.path.dirname(model_path), filename)
 
     with open(reward_file_path, "w") as f:
-        f.write(f"real_rollouts_rewards: {episode_rewards}\n")
+        f.write(f"real_rollouts_rewards: {episodes_rewards}\n")
         f.write(f"mean_reward: {mean_reward}\n")
         f.write(f"std_reward: {std_reward}\n")
+        f.write(f"per_step_rewards: {episodes_per_step_rewards}\n")
+        f.write(f"mean_per_step_reward: {np.mean(episodes_per_step_rewards)}\n")
+        f.write(f"std_per_step_reward: {np.std(episodes_per_step_rewards)}\n")
     print(f"Reward data saved to {reward_file_path}")
 
     env.close()
@@ -193,3 +204,19 @@ if __name__ == "__main__":
         deterministic_resets= args.deterministic_resets,
         reward_suffix=args.reward_suffix,
     )
+
+"""
+Example usage:
+python evaluate.py -e QubeSwingupEnv \
+-l logs/simulator/QubeSwingupEnv/3e6/seed-426/model.pkl \
+-ne 100 \
+--sim-params 7.5 0.042 0.042 0.095 0.085 0.00027 0.024 0.129 0.00005 9.81 \
+--non-deterministic \
+--reward-suffix sim
+
+python evaluate.py -e QubeSwingupEnv \
+-l logs/simulator/QubeSwingupEnv/3e6/seed-426/model.pkl \
+-ne 50 -hw \
+--non-deterministic \
+--reward-suffix real
+"""
