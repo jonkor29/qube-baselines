@@ -9,6 +9,8 @@ import numpy as np
 import argparse
 import re
 import ast
+from itertools import product
+
 
 def read_progress_csv(filepath):
     """
@@ -440,6 +442,95 @@ def plot_angle_trajectories(directory, title, angle_suffix):
     fig.suptitle(title if title else f"Angle Trajectories from {directory}")
     plt.tight_layout(rect=[0, 0.03, 1, 0.96])
     plt.show()
+
+
+def plot_reward_histogram_by_sign(directories, title, suffix, bins, state_vars):
+    """
+    Plots multiple reward histograms based on the sign combinations of initial state variables.
+    """
+    state_map = {'theta': 0, 'alpha': 1, 'theta_dot': 2, 'alpha_dot': 3}
+    
+    for var in state_vars:
+        if var not in state_map:
+            print(f"Error: Invalid state_var '{var}'. Must be one of {list(state_map.keys())}")
+            return
+    
+    state_indices = [state_map[var] for var in state_vars]
+
+    # --- NEW: Data Aggregation Loop ---
+    all_trajectories = []
+    all_rewards = []
+    for directory in directories:
+        angle_filename = f"angles_{suffix}.txt" if suffix else "angles.txt"
+        reward_filename = f"reward_{suffix}.txt" if suffix else "reward.txt"
+
+        angle_paths = glob.glob(os.path.join(directory, "**", angle_filename), recursive=True)
+        reward_paths = glob.glob(os.path.join(directory, "**", reward_filename), recursive=True)
+        
+        # This assumes a 1-to-1 mapping of angle files to reward files, which is reasonable.
+        for angle_path in angle_paths:
+            # Try to find a corresponding reward file in the same sub-directory
+            reward_path = angle_path.replace(angle_filename, reward_filename)
+            if os.path.exists(reward_path):
+                trajectories = parse_angles_txt(angle_path)
+                rewards = parse_reward_txt(reward_path)
+                if len(trajectories) == len(rewards):
+                    all_trajectories.extend(trajectories)
+                    all_rewards.extend(rewards)
+                else:
+                    print(f"Warning: Mismatch in {angle_path} and {reward_path}. Skipping.")
+            else:
+                 print(f"Warning: Could not find corresponding reward file for {angle_path}. Skipping.")
+    # --- END NEW ---
+
+    if not all_trajectories:
+        print("No valid trajectory/reward pairs found to plot.")
+        return
+
+    sign_combinations = list(product([1, -1], repeat=len(state_vars)))
+    reward_groups = {combo: [] for combo in sign_combinations}
+
+    for traj, reward in zip(all_trajectories, all_rewards):
+        initial_signs = tuple(np.sign(traj[0][i]) if traj[0][i] != 0 else 1 for i in state_indices)
+        if initial_signs in reward_groups:
+            reward_groups[initial_signs].append(reward)
+
+    num_combos = len(sign_combinations)
+    if num_combos <= 2:
+        nrows, ncols = 1, 2
+    elif num_combos <= 4:
+        nrows, ncols = 2, 2
+    else:
+        nrows, ncols = 2, 4
+    
+    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols*4, nrows*3.5), sharex=True, sharey=True)
+    axes = axes.flatten()
+    bin_count = bins if bins and bins > 0 else 'auto'
+    
+    x_min, x_max = np.min(all_rewards), np.max(all_rewards)
+
+    for i, combo in enumerate(sign_combinations):
+        ax = axes[i]
+        rewards_list = reward_groups[combo]
+        
+        label_parts = []
+        for var_name, sign in zip(state_vars, combo):
+            sign_str = '>=' if sign == 1 else '<'
+            label_parts.append(f'{var_name} {sign_str} 0')
+        
+        ax.hist(rewards_list, bins=bin_count, alpha=0.7, range=(x_min, x_max))
+        ax.set_title(', '.join(label_parts) + f' (N={len(rewards_list)})')
+        ax.grid(True)
+
+    for i in range(num_combos, len(axes)):
+        axes[i].set_visible(False)
+
+    fig.suptitle(title if title else f"Reward Distribution by Initial Signs of {', '.join(state_vars)}")
+    fig.supxlabel("Episode Reward")
+    fig.supylabel("Frequency")
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.show()
+
 def main():
     parser = argparse.ArgumentParser(description="Plot rewards from monitor.csv files.")
     parser.add_argument(
@@ -539,9 +630,26 @@ def main():
         default=None,
         help="Suffix for the angles file (e.g., 'sim' for 'angles_sim.txt')."
     )
+    parser.add_argument(
+        "--split-histogram-by-sign",
+        type=str,
+        nargs='+', # Accept one or more values
+        default=None,
+        choices=['theta', 'alpha', 'theta_dot', 'alpha_dot'],
+        help="Plot a split histogram based on the sign of one or more initial state variables."
+    )
     args = parser.parse_args()
-    
-    if args.histogram:
+
+    if args.split_histogram_by_sign:
+        reward_suffix = args.reward_types[0] if args.reward_types else None
+        plot_reward_histogram_by_sign(args.directories, args.title, reward_suffix, args.bins, args.split_histogram_by_sign)
+
+    elif args.plot_angles:
+        if len(args.directories) > 1:
+            print("Warning: Plotting angles for multiple directories may be cluttered. Using the first directory provided.")
+        plot_angle_trajectories(args.directories[0], args.title, args.angle_suffix)
+
+    elif args.histogram:
         if args.directories == ["."]:
             print("Error: For --histogram mode, please provide specific directories via -d.")
             return
