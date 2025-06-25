@@ -139,6 +139,25 @@ def parse_reward_txt(filepath):
                 break 
     return rewards_list
 
+def parse_angles_txt(filepath):
+    """
+    Parses an angles.txt file to extract all episode trajectories.
+    Each trajectory is a list of states [theta, alpha, theta_dot, alpha_dot].
+    Returns a list of trajectories.
+    """
+    trajectories = []
+    with open(filepath, 'r') as f:
+        for line in f:
+            if line.startswith("episode_"):
+                try:
+                    list_str = line.split(":", 1)[1].strip()
+                    parsed_list = ast.literal_eval(list_str)
+                    if isinstance(parsed_list, list):
+                        trajectories.append(np.array(parsed_list))
+                except (ValueError, SyntaxError) as e:
+                    print(f"Warning: Could not parse trajectory in {filepath}. Error: {e}")
+    return trajectories
+
 def collect_simopt_iteration_data(seed_dirs, iter_num, num_batches_limit_per_iter):
     """
     Collects data for a specific SimOpt iteration from multiple seed directories.
