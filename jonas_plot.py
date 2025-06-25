@@ -401,6 +401,45 @@ def plot_reward_histogram(directories, title, reward_suffix, bins=40, y_lim=None
     print(f"Mean: {mean_reward:.2f}, Std Dev: {std_reward:.2f}")
     plt.show()
 
+def plot_angle_trajectories(directory, title, angle_suffix):
+    """
+    Finds all specified angles files in the given directory, parses them,
+    and plots the trajectories.
+    """
+    if angle_suffix:
+        filename = f"angles_{angle_suffix}.txt"
+    else:
+        filename = "angles.txt"
+
+    angle_paths = glob.glob(os.path.join(directory, "**", filename), recursive=True)
+    if not angle_paths:
+        print(f"No '{filename}' files found in {directory}")
+        return
+
+    all_trajectories = []
+    for path in angle_paths:
+        all_trajectories.extend(parse_angles_txt(path))
+    
+    if not all_trajectories:
+        print("No angle data found to plot.")
+        return
+
+    fig, axes = plt.subplots(4, 1, figsize=(10, 15), sharex=True)
+    angle_names = ['Theta (rad)', 'Alpha (rad)', 'Theta_dot (rad/s)', 'Alpha_dot (rad/s)']
+
+    for i in range(4): # For each state variable
+        ax = axes[i]
+        for j, traj in enumerate(all_trajectories):
+            if j > 2:
+                break
+            ax.plot(traj[:, i], alpha=0.5)
+        ax.set_ylabel(angle_names[i])
+        ax.grid(True)
+    
+    axes[-1].set_xlabel("Time Step")
+    fig.suptitle(title if title else f"Angle Trajectories from {directory}")
+    plt.tight_layout(rect=[0, 0.03, 1, 0.96])
+    plt.show()
 def main():
     parser = argparse.ArgumentParser(description="Plot rewards from monitor.csv files.")
     parser.add_argument(
@@ -488,6 +527,17 @@ def main():
         nargs=2,
         default=None,
         help="Set the y-axis limits for the plot. Provide two integers: min and max."
+    )
+    parser.add_argument(
+        "--plot-angles",
+        action="store_true",
+        help="Plot angle trajectories from angles.txt files."
+    )
+    parser.add_argument(
+        "--angle-suffix",
+        type=str,
+        default=None,
+        help="Suffix for the angles file (e.g., 'sim' for 'angles_sim.txt')."
     )
     args = parser.parse_args()
     
