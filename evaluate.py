@@ -98,23 +98,27 @@ def evaluate_model(
 
     episodes_rewards = []
     episodes_per_step_rewards = []
+    all_episodes_angle_data = []
     
     for i in range(num_episodes):
         obs = env.reset()
         done = False
         ep_reward = 0.0
         ep_len = 0
+        current_episode_angles = [obs[0].tolist()]
         while not done:
             action, _ = model.predict(obs, deterministic=deterministic)
             obs, reward, done, _ = env.step(action)
             ep_reward += reward[0] # Reward is a vector with one element
             ep_len += 1
+            current_episode_angles.append(obs[0].tolist())
             if render and not use_hardware:
                 env.render()
 
         ep_reward_per_step = ep_reward / ep_len if ep_len > 0 else 0
         episodes_rewards.append(ep_reward)
         episodes_per_step_rewards.append(ep_reward_per_step)
+        all_episodes_angle_data.append(current_episode_angles)
         print("Episode number {}: Total reward: {:.2f}, reward per step: {:.2f}".format(i, ep_reward, ep_reward_per_step))
 
     mean_reward = np.mean(episodes_rewards)
@@ -138,6 +142,17 @@ def evaluate_model(
         f.write(f"mean_per_step_reward: {np.mean(episodes_per_step_rewards)}\n")
         f.write(f"std_per_step_reward: {np.std(episodes_per_step_rewards)}\n")
     print(f"Reward data saved to {reward_file_path}")
+
+    if reward_suffix:
+        angles_filename = f"angles_{reward_suffix}.txt"
+    else:
+        angles_filename = "angles.txt"
+    angles_file_path = os.path.join(os.path.dirname(model_path), angles_filename)
+
+    with open(angles_file_path, "w") as f:
+        for idx, trajectory in enumerate(all_episodes_angle_data):
+            f.write(f"episode_{idx}_angles: {trajectory}\n")
+    print(f"Angle data saved to {angles_file_path}")
 
     env.close()
 
