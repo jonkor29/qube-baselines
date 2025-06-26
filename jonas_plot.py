@@ -749,4 +749,9 @@ python jonas_plot.py --histogram \
 --reward-types double_mp \
 --y-lim 0 100 --bins 40 \
 -t "Histogram of Rewards from Sim-Only QubeSwingupEnv Deployed on Double mp Sim"
+
+python jonas_plot.py --split-histogram-by-sign alpha theta alpha_dot theta_dot \
+-d logs/simulator/QubeSwingupEnv/3e6/ \
+--reward-types double_mp --bins 40 \
+-t "Histogram of Rewards from Sim-Only QubeSwingupEnv Deployed on Double mp Sim - Split by Sign of initial state"
 """
