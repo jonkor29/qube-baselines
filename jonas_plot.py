@@ -343,7 +343,7 @@ def plot_evaluation_results(dir_label_reward_pairs, title):
                     markersize=8,
                     markeredgecolor='black',
                     elinewidth=2,
-                    label=f"{label} Final Reward ({reward_type if reward_type else 'default'})",
+                    label=f"{label} final reward on {reward_type if reward_type else 'default'} pendulum",
                     color=line_color
                 )
 
@@ -403,43 +403,79 @@ def plot_reward_histogram(directories, title, reward_suffix, bins=40, y_lim=None
     print(f"Mean: {mean_reward:.2f}, Std Dev: {std_reward:.2f}")
     plt.show()
 
-def plot_angle_trajectories(directory, title, angle_suffix):
+def plot_angle_trajectories(directory, title, angle_suffix, reward_range=None):
     """
-    Finds all specified angles files in the given directory, parses them,
-    and plots the trajectories.
+    Finds all specified angles and reward files in the given directory,
+    parses them, and plots the trajectories for episodes with rewards
+    within the specified range.
     """
-    if angle_suffix:
-        filename = f"angles_{angle_suffix}.txt"
-    else:
-        filename = "angles.txt"
-
-    angle_paths = glob.glob(os.path.join(directory, "**", filename), recursive=True)
-    if not angle_paths:
-        print(f"No '{filename}' files found in {directory}")
-        return
-
-    all_trajectories = []
-    for path in angle_paths:
-        all_trajectories.extend(parse_angles_txt(path))
+    # Define filenames based on the suffix
+    angle_filename = f"angles_{angle_suffix}.txt" if angle_suffix else "angles.txt"
+    reward_filename = f"reward_{angle_suffix}.txt" if angle_suffix else "reward.txt"
     
-    if not all_trajectories:
-        print("No angle data found to plot.")
+    # --- Data Aggregation ---
+    all_trajectories = []
+    all_rewards = []
+
+    # Find all angle files
+    angle_paths = glob.glob(os.path.join(directory, "**", angle_filename), recursive=True)
+    if not angle_paths:
+        print(f"No '{angle_filename}' files found in {directory}")
         return
 
+    # For each angle file, find its corresponding reward file and process them
+    for angle_path in angle_paths:
+        reward_path = angle_path.replace(angle_filename, reward_filename)
+        if os.path.exists(reward_path):
+            trajectories = parse_angles_txt(angle_path)
+            rewards = parse_reward_txt(reward_path)
+            
+            if len(trajectories) == len(rewards):
+                all_trajectories.extend(trajectories)
+                all_rewards.extend(rewards)
+            else:
+                print(f"Warning: Mismatch in number of episodes between '{angle_path}' and '{reward_path}'. Skipping this pair.")
+        else:
+            print(f"Warning: Could not find corresponding reward file '{reward_path}' for '{angle_path}'. Skipping.")
+
+    if not all_trajectories:
+        print("No valid angle/reward data pairs found to plot.")
+        return
+
+    # --- Filtering based on reward_range ---
+    if reward_range and len(reward_range) == 2:
+        min_reward, max_reward = reward_range
+        filtered_trajectories = []
+        for i, reward in enumerate(all_rewards):
+            if min_reward <= reward <= max_reward:
+                filtered_trajectories.append(all_trajectories[i])
+        
+        print(f"Found {len(filtered_trajectories)} trajectories (out of {len(all_trajectories)}) with rewards between {min_reward} and {max_reward}.")
+        if not filtered_trajectories:
+            print("No trajectories fall within the specified reward range. Nothing to plot.")
+            return
+        trajectories_to_plot = filtered_trajectories
+    else:
+        trajectories_to_plot = all_trajectories # Plot all if no range is given
+        print(f"No reward range specified. Plotting all {len(trajectories_to_plot)} trajectories.")
+
+
+    # --- Plotting ---
     fig, axes = plt.subplots(4, 1, figsize=(10, 15), sharex=True)
     angle_names = ['Theta (rad)', 'Alpha (rad)', 'Theta_dot (rad/s)', 'Alpha_dot (rad/s)']
 
-    for i in range(4): # For each state variable
+    for i in range(4):  # For each state variable
         ax = axes[i]
-        for j, traj in enumerate(all_trajectories):
-            if j > 2:
-                break
+        for traj in trajectories_to_plot:
             ax.plot(traj[:, i], alpha=0.5)
         ax.set_ylabel(angle_names[i])
         ax.grid(True)
-    
+
     axes[-1].set_xlabel("Time Step")
-    fig.suptitle(title if title else f"Angle Trajectories from {directory}")
+    plot_title = title if title else f"Angle Trajectories from {directory}"
+    if reward_range:
+        plot_title += f"\n(Reward Range: {reward_range[0]} to {reward_range[1]})"
+    fig.suptitle(plot_title)
     plt.tight_layout(rect=[0, 0.03, 1, 0.96])
     plt.show()
 
@@ -530,6 +566,57 @@ def plot_reward_histogram_by_sign(directories, title, suffix, bins, state_vars):
     fig.supylabel("Frequency")
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.show()
+
+def calculate_success_metrics(directories, reward_suffix, success_threshold):
+    """
+    Finds all specified reward files, calculates the success rate, and the
+    average reward of successful episodes.
+    """
+    all_rewards = []
+    
+    if reward_suffix:
+        reward_filename = f"reward_{reward_suffix}.txt"
+    else:
+        reward_filename = "reward.txt"
+        
+    print(f"Searching for '{reward_filename}' files to calculate success metrics...")
+
+    for directory in directories:
+        # Glob for files in the directory and subdirectories
+        reward_paths = glob.glob(os.path.join(directory, "**", reward_filename), recursive=True)
+        if not reward_paths:
+            print(f"Warning: No '{reward_filename}' files found in {directory}")
+            continue
+            
+        for path in reward_paths:
+            # The parse_reward_txt function returns a list of rewards
+            all_rewards.extend(parse_reward_txt(path))
+
+    if not all_rewards:
+        print("No reward data found to calculate metrics. Exiting.")
+        return
+
+    rewards_np = np.array(all_rewards)
+    total_episodes = len(rewards_np)
+    
+    # Episodes with reward > threshold
+    successful_episodes = rewards_np[rewards_np >= success_threshold]
+    num_successful_episodes = len(successful_episodes)
+    
+    # Calculate success rate
+    success_rate = (num_successful_episodes / total_episodes) * 100 if total_episodes > 0 else 0
+    
+    # Calculate average reward of successful episodes
+    avg_reward_successful = np.mean(successful_episodes) if num_successful_episodes > 0 else 0
+
+    print("\n--- Success Metrics ---")
+    print(f"Total episodes found: {total_episodes}")
+    print(f"Success threshold: > {success_threshold} reward")
+    print(f"Number of successful episodes: {num_successful_episodes}")
+    print(f"Success Rate: {success_rate:.2f}%")
+    if num_successful_episodes > 0:
+        print(f"Average reward of successful episodes: {avg_reward_successful:.2f}")
+    print("-----------------------\n")
 
 def main():
     parser = argparse.ArgumentParser(description="Plot rewards from monitor.csv files.")
@@ -631,6 +718,13 @@ def main():
         help="Suffix for the angles file (e.g., 'sim' for 'angles_sim.txt')."
     )
     parser.add_argument(
+        "--reward-range",
+        type=float,
+        nargs=2,
+        default=None,
+        help="For --plot-angles, only plot trajectories with a final reward in this range [min max]."
+    )
+    parser.add_argument(
         "--split-histogram-by-sign",
         type=str,
         nargs='+', # Accept one or more values
@@ -638,16 +732,39 @@ def main():
         choices=['theta', 'alpha', 'theta_dot', 'alpha_dot'],
         help="Plot a split histogram based on the sign of one or more initial state variables."
     )
+    parser.add_argument(
+        "--success-metrics",
+        action="store_true",
+        help="Calculate success rate and average reward for successful episodes from reward.txt files."
+    )
+    parser.add_argument(
+        "--success-threshold",
+        type=int,
+        default=1500,
+        help="Reward threshold for an episode to be considered successful."
+    )
     args = parser.parse_args()
+    if args.success_metrics:
+        if args.directories == ["."]:
+            print("Error: For --success-metrics mode, please provide specific directories via -d.")
+            return
+        reward_suffix = args.reward_types[0] if args.reward_types else None
+        calculate_success_metrics(args.directories, reward_suffix, args.success_threshold)
 
-    if args.split_histogram_by_sign:
+    elif args.split_histogram_by_sign:
         reward_suffix = args.reward_types[0] if args.reward_types else None
         plot_reward_histogram_by_sign(args.directories, args.title, reward_suffix, args.bins, args.split_histogram_by_sign)
 
     elif args.plot_angles:
         if len(args.directories) > 1:
             print("Warning: Plotting angles for multiple directories may be cluttered. Using the first directory provided.")
-        plot_angle_trajectories(args.directories[0], args.title, args.angle_suffix)
+        # Determine the suffix for reward files from --reward-types to match the angle suffix
+        reward_suffix = args.reward_types[0] if args.reward_types else None
+        if reward_suffix != args.angle_suffix:
+            print(f"Warning: --angle-suffix is '{args.angle_suffix}' but the first --reward-types is '{reward_suffix}'. Make sure these correspond to related files.")
+        
+        # Updated function call to pass the new argument
+        plot_angle_trajectories(args.directories[0], args.title, args.angle_suffix, args.reward_range)
 
     elif args.histogram:
         if args.directories == ["."]:
@@ -731,7 +848,9 @@ if __name__ == "__main__":
 
 """
 Example commands:
-python jonas_plot.py --simopt --simopt-iters 4 -d /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-344 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-781 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-414 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-560 --title "SimOpt test - sim2sim with double mass, N=4"
+python jonas_plot.py --simopt --simopt-iters 4 \
+-d /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-344 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-781 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-414 /home/jonas/Masteroppgave/qube-baselines/logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_12124545/seed-560 \
+--title "SimOpt test - sim2sim with double mass, N=4"
 
 python jonas_plot.py --eval \
 -d logs/simulator/QubeSwingupEnv/3e6/ logs/simulator/QubeSwingupEnv/1e6/ \
@@ -754,4 +873,13 @@ python jonas_plot.py --split-histogram-by-sign alpha theta alpha_dot theta_dot \
 -d logs/simulator/QubeSwingupEnv/3e6/ \
 --reward-types double_mp --bins 40 \
 -t "Histogram of Rewards from Sim-Only QubeSwingupEnv Deployed on Double mp Sim - Split by Sign of initial state"
+
+python jonas_plot.py --plot-angles \
+-d /path/to/your/log/directory/ \
+--reward-range 1100 1300 \
+-t "High-Reward Trajectories (1100-1300)"
+
+python jonas_plot.py --success-metrics \\
+-d logs/simulator/QubeSwingupEnv/1e6/ \\
+--reward-types real --success-threshold 1200
 """
