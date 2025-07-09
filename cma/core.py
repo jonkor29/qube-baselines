@@ -132,6 +132,8 @@ class CMA(object):
         self._t0 = None
         self._t1 = None
 
+        self.goal_solution = None #used for testing and logging if correct solution is known beforehand
+
     def init(self):
         if self._initialized:
             raise ValueError('Already initialized - call reset method to start over')

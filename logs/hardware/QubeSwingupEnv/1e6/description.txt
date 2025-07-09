@@ -1,0 +1,1 @@
+Initial test where 4 agents where trained in sim then finetuned to HW to quantify the sim2-real gap.

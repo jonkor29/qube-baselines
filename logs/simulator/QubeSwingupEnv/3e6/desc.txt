@@ -1,0 +1,3 @@
+The rewards.txt for each model is the reward on the 'real' system before finetuning.
+
+The description of the reward is in the description field inside the reward.txt

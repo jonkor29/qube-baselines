@@ -1,5 +1,6 @@
 import os
 import yaml
+import numpy as np
 
 DEFAULT_CONFIG = "qube_servo3_usb"
 def load_config(config_path=None):
@@ -19,3 +20,14 @@ def load_config(config_path=None):
     if selected_config not in configs:
         raise ValueError(f"Configuration '{selected_config}' is not defined in {config_path}.")
     return configs[selected_config]
+
+def params_from_config_dict(config_dict):
+    """
+    Converts the configuration dictionary to a list of parameters for the Qube.
+    The parameters are in the order:
+    [Rm, kt, km, mr, Lr, Dr, mp, Lp, Dp, g]
+    """
+    params = []
+    for key in ['Rm', 'kt', 'km', 'mr', 'Lr', 'Dr', 'mp', 'Lp', 'Dp', 'g']:
+        params.append(config_dict[key])
+    return np.array(params)

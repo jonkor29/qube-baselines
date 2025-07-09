@@ -1,0 +1,62 @@
+Logging to logs/SimOpt/QubeSwingupEnv/sim2sim_double_mass_stochastic_rollouts_1814/seed-28/iter-0
+Training RL agent on env with p_phi~N([0.024], [[2.5e-05]])
+Loading model from None
+-------------------------------------
+| approxkl           | 0.0052392487 |
+| clipfrac           | 0.066748045  |
+| explained_variance | 0.936        |
+| fps                | 420          |
+| n_updates          | 1            |
+| policy_entropy     | 4.556617     |
+| policy_loss        | -0.007178843 |
+| serial_timesteps   | 2048         |
+| time_elapsed       | 1.67e-06     |
+| total_timesteps    | 2048         |
+| value_loss         | 0.0035423369 |
+-------------------------------------
+Training complete. Starting rollouts...
+Real rollout complete. | SimOpt Iteration: 0 | Real rollout episode reward: 2042.2008056640625 | Time: 14.17s
+CMA-ES Initialization Complete. Starting search...
+Generation:    1 | Population size: 8.0 Fitness: 1.773036e+02 | Mean: 0.0240 | Cov: [[0.811291]] | Time: 47.76527976989746s
+Generation:    2 | Population size: 8.0 Fitness: 1.563534e+02 | Mean: 0.0240 | Cov: [[0.8731866]] | Time: 50.3303427696228s
+Generation:    3 | Population size: 8.0 Fitness: 1.516271e+02 | Mean: 0.0240 | Cov: [[0.5314564]] | Time: 50.77185273170471s
+Generation:    4 | Population size: 8.0 Fitness: 1.652016e+02 | Mean: 0.0240 | Cov: [[0.4749012]] | Time: 50.69154977798462s
+Generation:    5 | Population size: 8.0 Fitness: 1.729461e+02 | Mean: 0.0240 | Cov: [[0.36466417]] | Time: 50.328852891922s
+Generation:    6 | Population size: 8.0 Fitness: 1.506607e+02 | Mean: 0.0240 | Cov: [[0.40369806]] | Time: 51.43565106391907s
+Generation:    7 | Population size: 8.0 Fitness: 1.653844e+02 | Mean: 0.0240 | Cov: [[0.44046417]] | Time: 47.30634355545044s
+Generation:    8 | Population size: 8.0 Fitness: 1.922118e+02 | Mean: 0.0240 | Cov: [[0.49425173]] | Time: 49.43354845046997s
+Generation:    9 | Population size: 8.0 Fitness: 1.599306e+02 | Mean: 0.0240 | Cov: [[0.561815]] | Time: 50.8404061794281s
+Generation:   10 | Population size: 8.0 Fitness: 1.630557e+02 | Mean: 0.0240 | Cov: [[0.6887502]] | Time: 49.44413113594055s
+Generation:   11 | Population size: 8.0 Fitness: 1.681723e+02 | Mean: 0.0240 | Cov: [[1.075941]] | Time: 51.71099400520325s
+Generation:   12 | Population size: 8.0 Fitness: 1.367428e+02 | Mean: 0.0239 | Cov: [[1.4787672]] | Time: 54.130173444747925s
+Generation:   13 | Population size: 8.0 Fitness: 1.902838e+02 | Mean: 0.0239 | Cov: [[1.0077138]] | Time: 45.95127820968628s
+Generation:   14 | Population size: 8.0 Fitness: 1.736597e+02 | Mean: 0.0240 | Cov: [[1.1657193]] | Time: 44.361838817596436s
+Generation:   15 | Population size: 8.0 Fitness: 1.696391e+02 | Mean: 0.0239 | Cov: [[1.1510175]] | Time: 40.795196533203125s
+Generation:   16 | Population size: 8.0 Fitness: 1.621585e+02 | Mean: 0.0239 | Cov: [[0.6934417]] | Time: 40.54404616355896s
+Generation:   17 | Population size: 8.0 Fitness: 1.673526e+02 | Mean: 0.0239 | Cov: [[0.60845745]] | Time: 46.08891940116882s
+Generation:   18 | Population size: 8.0 Fitness: 1.953409e+02 | Mean: 0.0239 | Cov: [[0.5424782]] | Time: 49.16537952423096s
+Generation:   19 | Population size: 8.0 Fitness: 1.666452e+02 | Mean: 0.0239 | Cov: [[1.1463975]] | Time: 49.343839168548584s
+Generation:   20 | Population size: 8.0 Fitness: 1.925458e+02 | Mean: 0.0240 | Cov: [[1.6272243]] | Time: 44.22029638290405s
+Generation:   21 | Population size: 8.0 Fitness: 1.877288e+02 | Mean: 0.0239 | Cov: [[1.0647429]] | Time: 42.65644121170044s
+Generation:   22 | Population size: 8.0 Fitness: 1.433665e+02 | Mean: 0.0240 | Cov: [[1.6006522]] | Time: 42.97712850570679s
+Generation:   23 | Population size: 8.0 Fitness: 1.291425e+02 | Mean: 0.0241 | Cov: [[1.5654918]] | Time: 40.4413685798645s
+Generation:   24 | Population size: 8.0 Fitness: 1.751640e+02 | Mean: 0.0239 | Cov: [[2.3343296]] | Time: 44.150386333465576s
+Generation:   25 | Population size: 8.0 Fitness: 1.357552e+02 | Mean: 0.0240 | Cov: [[1.6879982]] | Time: 44.075031042099s
+Generation:   26 | Population size: 8.0 Fitness: 1.387553e+02 | Mean: 0.0238 | Cov: [[2.814198]] | Time: 45.768171548843384s
+Generation:   27 | Population size: 8.0 Fitness: 1.799505e+02 | Mean: 0.0239 | Cov: [[2.092302]] | Time: 46.04265260696411s
+Generation:   28 | Population size: 8.0 Fitness: 1.677763e+02 | Mean: 0.0239 | Cov: [[1.566571]] | Time: 46.57012486457825s
+Generation:   29 | Population size: 8.0 Fitness: 1.914787e+02 | Mean: 0.0238 | Cov: [[2.4050934]] | Time: 53.32377767562866s
+Generation:   30 | Population size: 8.0 Fitness: 1.551779e+02 | Mean: 0.0239 | Cov: [[1.8576591]] | Time: 43.90348768234253s
+Generation:   31 | Population size: 8.0 Fitness: 1.580147e+02 | Mean: 0.0239 | Cov: [[1.3605523]] | Time: 46.466957569122314s
+Generation:   32 | Population size: 8.0 Fitness: 2.174676e+02 | Mean: 0.0238 | Cov: [[1.269055]] | Time: 52.18565917015076s
+Generation:   33 | Population size: 8.0 Fitness: 1.334434e+02 | Mean: 0.0239 | Cov: [[2.2090745]] | Time: 59.93769025802612s
+Generation:   34 | Population size: 8.0 Fitness: 1.680021e+02 | Mean: 0.0239 | Cov: [[1.9466544]] | Time: 61.581148862838745s
+Generation:   35 | Population size: 8.0 Fitness: 1.313127e+02 | Mean: 0.0239 | Cov: [[1.745073]] | Time: 61.55052995681763s
+Generation:   36 | Population size: 8.0 Fitness: 1.593589e+02 | Mean: 0.0237 | Cov: [[4.7387805]] | Time: 60.315990686416626s
+Generation:   37 | Population size: 8.0 Fitness: 1.376996e+02 | Mean: 0.0233 | Cov: [[14.761408]] | Time: 57.91144347190857s
+Generation:   38 | Population size: 8.0 Fitness: 1.391887e+02 | Mean: 0.0244 | Cov: [[12.603637]] | Time: 56.85600209236145s
+Generation:   39 | Population size: 8.0 Fitness: 1.530227e+02 | Mean: 0.0251 | Cov: [[13.755531]] | Time: 43.52386403083801s
+Generation:   40 | Population size: 8.0 Fitness: 1.627169e+02 | Mean: 0.0245 | Cov: [[10.203112]] | Time: 47.6265389919281s
+Generation:   41 | Population size: 8.0 Fitness: 1.405363e+02 | Mean: 0.0239 | Cov: [[11.077284]] | Time: 44.48071527481079s
+Generation:   42 | Population size: 8.0 Fitness: 1.982323e+02 | Mean: 0.0250 | Cov: [[13.336371]] | Time: 52.9433057308197s
+Generation:   43 | Population size: 8.0 Fitness: 1.937531e+02 | Mean: 0.0269 | Cov: [[38.615437]] | Time: 52.84073328971863s

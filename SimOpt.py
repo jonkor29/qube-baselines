@@ -19,8 +19,9 @@ import tensorflow as tf
 tf.compat.v1.disable_eager_execution()
 
 
-from load_config import load_config
+from load_config import load_config, params_from_config_dict
 from train import train
+
 
 def normalized_angle_diff_rad(a1, a2):
     """
@@ -34,7 +35,7 @@ def normalized_angle_diff_rad(a1, a2):
     diff = a1 - a2
     return (diff + np.pi) % (2 * np.pi) - np.pi
 
-def real_rollout(env, model, use_hardware=True, load=None, deterministic_model=True, deterministic_resets=True):
+def real_rollout(env, model, use_hardware=True, load=None, deterministic_model=True, deterministic_resets=True, p_phi=None):
     """
     Run a rollout of the trained model in the environment.
     args:
@@ -45,7 +46,7 @@ def real_rollout(env, model, use_hardware=True, load=None, deterministic_model=T
         traj: The trajectory of the rollout.
     """
     def make_env():
-        env_out = env(use_simulator=not use_hardware, frequency=250, deterministic_resets=deterministic_resets)
+        env_out = env(use_simulator=not use_hardware, frequency=250, deterministic_resets=deterministic_resets, p_phi=p_phi)
         return env_out
     try:
         env = DummyVecEnv([make_env])
@@ -231,6 +232,20 @@ def create_fitness_fn(traj_real, policy, deterministic_sim_resets=True, determin
 
     return fitness_fn_graph_compatible
 
+def format_array(arr):
+    return np.array2string(arr, precision=5, suppress_small=True, separator=", ", max_line_width=np.inf)
+
+def relative_error(input_vec, target_vec):
+    input_vector = np.asarray(input_vec, dtype=float)
+    target_vector = np.asarray(target_vec, dtype=float)
+    
+    assert input_vector.shape == target_vector.shape, "Input and target vectors must have the same shape."
+
+    abs_diff = np.abs(input_vector - target_vector)
+    abs_target = np.abs(target_vector) + 1e-8  # Avoid division by zero
+    relative_errors = abs_diff / abs_target
+    
+    return np.mean(relative_errors)
 
 def log_progress_callback(cma_instance, ignored_standard_logger):
     generation = cma_instance.generation
@@ -247,11 +262,19 @@ def log_progress_callback(cma_instance, ignored_standard_logger):
             cma_instance.t1 = time.time()
             elapsed_time = cma_instance.t1 - cma_instance.t0
             cma_instance.t0 = cma_instance.t1
-            logger.log(f"Generation: {generation:4d} | Population size: {population_size} Fitness: {current_best_fitness:.6e} | Mean: {current_mean[0]:.4f} | Cov: {cov_matrix} | Time: {elapsed_time}s")
+            #logger.log(f"Generation: {generation:4d} \nPopulation size: {population_size} \nFitness: {current_best_fitness:.6e} \nCov diag mean: {np.mean(np.diag(cov_matrix))} \nTime: {elapsed_time}s")
+            logger.log(f"Generation: {generation:4d} | Population size: {population_size} | Time: {elapsed_time:.2f}s")
+            logger.log(f"Current mean: {format_array(current_mean)}")
+            if cma_instance.goal_solution is not None:
+                logger.log(f"Goal solution: {format_array(cma_instance.goal_solution)}")
+                logger.log(f"Relative error: {relative_error(current_mean, cma_instance.goal_solution):.6e}\n")
+            logger.log(f"Fitness: {current_best_fitness:.6e}")
+
 
         except Exception as e:
             logger.error(f"Error fetching info in callback for generation {generation}: {e}")
             print(f"Generation: {generation:4d} | Info: [Error fetching]")
+
 
 def main():
 
@@ -300,24 +323,29 @@ def main():
         help="Use hardware or not for the 'real' system",
     )
     args = parser.parse_args()
-    #os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass" 
+
     os.environ["QUANSER_HW"] = "qube_servo3_usb"
     config = load_config("config.yaml")
-    mu = np.array([config['mp']]) #mean of the distribution
+    physical_params = params_from_config_dict(config)
+    train_on_params = physical_params.copy()
+    Rm, kt, km, mr, Lr, Dr, mp, Lp, Dp, g = physical_params
+    if not args.use_hardware:
+        real_rollout_params = physical_params.copy() + np.array([0,0,0,1.0*mr,1.0*Lr,0,1.0*mp,1.0*Lp,0,0], dtype=np.float64) #Rm, kt, km, mr, Lr, Dr, mp, Lp, Dp, g
+        p_real_rollout = multivariate_normal(mean=real_rollout_params, cov=np.diag(real_rollout_params*0), seed=42, allow_singular=True)
     # ------------- SimOpt Initialization ---------------
 
-    sigma_squared = np.diag(np.ones(mu.shape[0])*0.000025)
-    phi = (mu, sigma_squared)
+    sigma_squared = np.diag((train_on_params*0.1)**2) #Set the std deviation to 20% of the mean
+    phi = (train_on_params, sigma_squared)
     p_phi = multivariate_normal(mean=phi[0], cov=phi[1], seed=42, allow_singular=True)
-
+    
     # Loop to find an unused seed
     env_name = "QubeSwingupEnv"
-    TEST_ID = 12124545
-    experiment_name = "recreate_sim2sim_double_mass" + "_" + str(TEST_ID)
-    version_name = "v4"
+    TEST_ID = 1111
+    experiment_name = "simopt_sim2real_all_params" + "_" + str(TEST_ID)
+    version = "v1"
     while True:
         seed = np.random.randint(1, 1000)
-        base_logdir = f"logs/SimOpt/{env_name}/{experiment_name}/{version_name}/seed-{seed}"
+        base_logdir = f"logs/SimOpt/{env_name}/{experiment_name}/{version}/seed-{seed}"
         if not os.path.exists(base_logdir):
             set_global_seeds(seed)
             break
@@ -337,13 +365,9 @@ def main():
         #if i_simopt == 0:
         #    load = '/home/jonas/Masteroppgave/qube-baselines/logs/simulator/QubeSwingupEnv/3e6/seed-857/model.pkl'
         #    logger.log(f"Loading model from {load}")
-
-        
-        #os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass"
-        os.environ["QUANSER_HW"] = "qube_servo3_usb"  
         model, env = train(
             env=QubeSwingupEnv,
-            num_timesteps=1000000 if i_simopt == 0 else 1000000,
+            num_timesteps=2000000 if i_simopt == 0 else 1000000,
             hardware=False,
             logdir=logdir,
             save=True,
@@ -357,72 +381,56 @@ def main():
         env.close()
         logger.log("Training complete. Starting rollouts...")
         #line6: tau_real <- RealRollout(pi_theta_p_phi)
-        #force double mass when using simulator
-        os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass"
-        #os.environ["QUANSER_HW"] = "qube_servo3_usb" 
-        traj_real, episode_reward = real_rollout(QubeSwingupEnv, model, use_hardware=args.use_hardware, deterministic_resets=False, deterministic_model=True)
+        logger.log(f"Real rollout parameters: {format_array(real_rollout_params) if not args.use_hardware else 'N/A'}")
+        traj_real, episode_reward = real_rollout(QubeSwingupEnv, model, use_hardware=args.use_hardware, deterministic_resets=True, deterministic_model=True, p_phi=p_real_rollout if not args.use_hardware else None)
         logger.log(f"Real rollout complete. | SimOpt Iteration: {i_simopt} | Real rollout episode reward: {episode_reward} | Time: {time.time() - t0_simopt:.2f}s")
         #line7: xi <- p_phi.sample()
-        #xi_0 = np.array([0.024])#np.array([p_phi.rvs(size=1)])
         #line8: tau_xi <- SimRollout(pi_theta_p_phi, xi)
-        os.environ["QUANSER_HW"] = "qube_servo3_usb"
-        #os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass" 
-        #traj_xi_0 = sim_rollout(QubeSwingupEnv, model, xi=xi_0)
-        #NOTE: cut trajectory to first second
         traj_real = traj_real[:args.T_max, :, :]
-        sampled_init_state = traj_real[0, 0, :].copy()
-        fitness_fn = create_fitness_fn(traj_real, model, deterministic_sim_resets=True, deterministic_sim_model=True, T_max=args.T_max, sim_initial_state=sampled_init_state)
-        #fitness = fitness_fn(xi_0)
+        sim_init_state = traj_real[0, 0, :].copy()
+        fitness_fn = create_fitness_fn(traj_real, model, deterministic_sim_resets=True, deterministic_sim_model=True, T_max=args.T_max, sim_initial_state=sim_init_state) #sim_initial_state=traj_real[0, 0, :], 
+
         cma_t0 = time.time()
-        lower = max(0, phi[0].item() - 3*np.sqrt(phi[1]).item())
-        upper = max(0, phi[0].item() + 3*np.sqrt(phi[1]).item())
+        #previous cma instance
+        #cma_cov = cma.get_covariance_matrix() if 'cma' in locals() else phi[1]
+        cma_cov=phi[1]
+        lower = np.maximum(0, phi[0] - 3*np.sqrt(np.diag(cma_cov)))
+        upper = np.maximum(0, phi[0] + 3*np.sqrt(np.diag(cma_cov)))
+        bounds = [[lower[i], upper[i]] if i in [3,4,6,7,9] else [phi[0][i], phi[0][i]] for i in range(len(lower))] #only allow the parameters mr, Lr, mp, Lp to vary, the rest are fixed
         cma = CMA(
             initial_solution=p_phi.mean.tolist(),
-            initial_step_size=phi[1].item(),
+            initial_step_size=np.mean(np.sqrt(np.diag(phi[1]))),
             fitness_function=fitness_fn,
-            enforce_bounds=[[lower, upper]],
+            enforce_bounds=bounds,
             termination_no_effect=1e-8,
             callback_function=log_progress_callback,
         )
+        cma.goal_solution = real_rollout_params if not args.use_hardware else None
         best_solution, best_fitness = cma.search(max_generations=args.max_generations)
         logger.log(f"CMA-ES search complete. | SimOpt Iteration: {i_simopt} | Best solution: {best_solution} | Best fitness: {best_fitness} | Time: {time.time() - cma_t0:.2f}s")
-        logger.log(f"Finished SimOpt Iteration: {i_simopt} | Time: {time.time() - t0_simopt:.2f}s")
+        logger.log(f"CMA solution: {format_array(best_solution)}")
+        logger.log(f"Known solution: {format_array(real_rollout_params) if not args.use_hardware else 'N/A'}")
         #update p_phi
         phi = (cma.get_mean(), phi[1])
         p_phi = multivariate_normal(mean=phi[0], cov=phi[1], seed=42, allow_singular=True)
-        logger.log(f"Updated p_phi~N({p_phi.mean}, {p_phi.cov})")
+        logger.log(f"Updated p_phi~N({format_array(p_phi.mean)}, {format_array(np.diag(p_phi.cov))})")
 
         #Meassure avg reward on the real rollout
-        os.environ["QUANSER_HW"] = "qube_servo3_usb_wrong_pendulum_mass"
-        #os.environ["QUANSER_HW"] = "qube_servo3_usb" 
         deterministic_resets = False
         deterministic_model = False
         logger.log(f"Rolling out to REAL {'HARDWARE' if args.use_hardware else 'SIMULATOR'} with deterministics resets: {deterministic_resets} and deterministic model: {deterministic_model}")
         rewards = []
         for i in range(args.reward_samples): 
-            _, reward = real_rollout(QubeSwingupEnv, model, use_hardware=args.use_hardware, deterministic_resets=deterministic_resets, deterministic_model=deterministic_model)
+            _, reward = real_rollout(QubeSwingupEnv, model, use_hardware=args.use_hardware, deterministic_resets=deterministic_resets, deterministic_model=deterministic_model, p_phi=p_real_rollout if not args.use_hardware else None)
             rewards.append(reward)
-        os.environ["QUANSER_HW"] = "qube_servo3_usb" 
         with open(f"{logdir}/reward.txt", "w") as f:
             f.write(f"real_rollouts_rewards: {rewards}\n")
             f.write(f"mean_reward: {np.mean(rewards)}\n")
             f.write(f"std_reward: {np.std(rewards)}\n")
         f.close()
-
-
-        #TODO: tweak: max_gen, N_simopt, sigma, n_timesteps, for loop real rollout range()
-        """        
-        with open(f"{base_logdir}/best_solutions.txt", "w") as f:
-        f.write(f"---------SimOpt iteration: {i_simopt}-----------\n")
-        f.write(f"Best solution: {best_solution}\n")
-        f.write(f"Best fitness: {best_fitness}\n")
-        #f.write(f"Unoptimized fitness: {fitness}\n")
-        f.write(f"Unoptimized D-value: {D(traj_xi_0, traj_real)}\n")
-        f.write(f"xi_0: {xi_0}\n")
-        f.write(f"traj_xi_0: {traj_xi_0}\n")
-        f.write(f"traj_real: {traj_real}\n")
-        f.write("-------------------------------\n")
-        """
+        
+        logger.log(f"Finished SimOpt Iteration: {i_simopt} | Time: {time.time() - t0_simopt:.2f}s")
+    
 
     """
     # ------------- SimOpt Main Loop ----------------
